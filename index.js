@@ -359,9 +359,9 @@ class LlamaCppServer {
     } catch (error) {
       this.modelCache = null;
       if (error.code === "ECONNREFUSED") {
-        throw new Error(this.connectionErrorMessage());
+        throw new Error(this.connectionErrorMessage(), { cause: error });
       }
-      throw new Error(`Failed to discover model from llama.cpp server: ${error.message}`);
+      throw new Error(`Failed to discover model from llama.cpp server: ${error.message}`, { cause: error });
     }
   }
 
@@ -387,9 +387,9 @@ class LlamaCppServer {
       return response.data.choices[0].message.content;
     } catch (error) {
       if (error.code === "ECONNREFUSED") {
-        throw new Error(this.connectionErrorMessage());
+        throw new Error(this.connectionErrorMessage(), { cause: error });
       }
-      throw new Error(`llama.cpp error: ${error.message}`);
+      throw new Error(`llama.cpp error: ${error.message}`, { cause: error });
     }
   }
 
@@ -461,7 +461,7 @@ class LlamaCppServer {
       const content = await fs.readFile(filePath, "utf-8");
       return content;
     } catch (error) {
-      throw new Error(`Failed to read file ${filePath}: ${error.message}`);
+      throw new Error(`Failed to read file ${filePath}: ${error.message}`, { cause: error });
     }
   }
 
@@ -562,9 +562,9 @@ class LlamaCppServer {
       };
     } catch (error) {
       if (error.code === "ECONNREFUSED") {
-        throw new Error(this.connectionErrorMessage());
+        throw new Error(this.connectionErrorMessage(), { cause: error });
       }
-      throw new Error(`Failed to fetch llama.cpp server info: ${error.message}`);
+      throw new Error(`Failed to fetch llama.cpp server info: ${error.message}`, { cause: error });
     }
   }
 

@@ -156,6 +156,7 @@ Test with the full index.js file (400+ lines):
 After making changes to the MCP server:
 
 - [ ] Run `npm test` to check routing/caching/prompt logic against the mock backend
+- [ ] Run `npm run lint` (ESLint) to catch unused vars, undefined refs, etc.
 - [ ] Run `node --check index.js` and `node --check prompts.js` to verify syntax
 - [ ] Restart Claude Code to reload MCP server
 - [ ] Verify new tools appear in Claude's tool list (check for `mcp__llamacpp__` prefix)

@@ -13,8 +13,9 @@ model family.
 ## Commands
 
 ```bash
-npm install     # install deps (@modelcontextprotocol/sdk, axios)
+npm install     # install deps (@modelcontextprotocol/sdk, axios) + devDeps (eslint)
 npm test        # run the automated suite (node --test) — mocked backend, ~250ms, no llama-server needed
+npm run lint    # ESLint (flat config, recommended rules only — no style/formatting rules)
 npm start        # run the MCP server on stdio (needs a real llama-server on LLAMACPP_BASE_URL)
 node --check index.js && node --check prompts.js   # quick syntax check
 ```
@@ -60,10 +61,12 @@ Running against a **real** `llama-server` requires it to already be up (default
   `message.reasoning_content`. If you add handling for reasoning output, keep in mind the
   server needs `--reasoning-format deepseek` for those to even be split apart — see
   README's "Prompt Templates" section.
-- After changing `index.js`/`prompts.js`: run `npm test`, and if you touched request/response
-  shapes, re-verify against a real `llama-server` (`npm start`, or the MCP JSON-RPC smoke
-  test pattern in `test/integration.test.js`) since the mocked backend won't catch a real
-  model producing a genuinely different response shape.
+- After changing `index.js`/`prompts.js`: run `npm test` and `npm run lint`, and if you
+  touched request/response shapes, re-verify against a real `llama-server` (`npm start`, or
+  the MCP JSON-RPC smoke test pattern in `test/integration.test.js`) since the mocked
+  backend won't catch a real model producing a genuinely different response shape.
+- Re-thrown errors in a `catch` block should pass `{ cause: error }` to `new Error(...)` (ESLint's
+  `preserve-caught-error` rule enforces this) so the original stack isn't lost.
 
 ## Known constraints
 

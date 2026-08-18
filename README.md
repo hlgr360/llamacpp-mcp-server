@@ -296,6 +296,7 @@ llamacpp_mcp/
 │   └── integration.test.js
 ├── scripts/
 │   └── start-llama.sh    # Optional convenience launcher for llama-server (tmux + HF model lookup)
+├── eslint.config.js      # ESLint flat config (recommended rules only, no style/formatting)
 ├── package.json          # Node.js dependencies
 ├── README.md             # This file
 ├── AGENTS.md             # Priming notes for coding agents working in this repo

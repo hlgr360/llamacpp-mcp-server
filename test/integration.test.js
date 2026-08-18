@@ -1,4 +1,4 @@
-import { test, describe, before, after } from "node:test";
+import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "child_process";
 import path from "path";
