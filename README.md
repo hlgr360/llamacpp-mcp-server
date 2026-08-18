@@ -1,19 +1,23 @@
-# llama.cpp MCP Server for Claude Code
+# llama.cpp MCP Bridge
 
 This MCP (Model Context Protocol) server bridges a local **llama.cpp `llama-server`**
-instance to Claude Code (or any MCP-speaking coding agent), letting you delegate coding
-tasks to your local models to minimize API token usage.
+instance to **any MCP-speaking coding agent** — Claude Code, Cursor, Codex CLI, Cline,
+Windsurf, or your own MCP client — letting you delegate coding tasks to your local models
+to minimize cloud API token usage. It speaks standard MCP over stdio, so nothing here is
+Claude-specific; the setup instructions below use Claude Code as the reference example
+since that's what's included (`claude-mcp-config.json`), but the same `node index.js`
+command works as the MCP server entry for any client.
 
 ## How It Works
 
-Claude Code acts as an **orchestrator**, calling tools provided by this MCP server. The
-tools run on your local `llama-server`, and Claude reviews/refines the results as needed.
-This approach:
+Your coding agent acts as the **orchestrator**, calling tools provided by this MCP
+server. The tools run on your local `llama-server`, and the agent reviews/refines the
+results as needed. This approach:
 
-- ✅ Minimizes Anthropic API token usage (up to 98.75% reduction with file-aware tools!)
+- ✅ Minimizes cloud API token usage (up to 98.75% reduction with file-aware tools!)
 - ✅ Leverages your local compute resources
-- ✅ Works across any Claude Code project/session
-- ✅ Allows Claude to provide oversight and corrections
+- ✅ Works across any project/session, in any MCP-compatible client
+- ✅ Lets the orchestrating agent provide oversight and corrections
 - ✅ Auto-detects whichever model `llama-server` currently has loaded — no hardcoded model name
 
 ## Available Tools
@@ -85,9 +89,11 @@ By default this MCP server talks to `http://localhost:8080`. Override with the
 export LLAMACPP_BASE_URL=http://localhost:8081
 ```
 
-### 3. Configure Claude Code
+### 3. Configure Your MCP Client
 
-Add this MCP server to your Claude Code configuration. The config file location depends on your OS:
+Every MCP client reads roughly the same shape of config — a command to launch the server
+plus its arguments — just from a different file. This repo ships `claude-mcp-config.json`
+for Claude Code/Desktop as the reference example:
 
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
@@ -108,25 +114,31 @@ Add the following to your config (or merge with existing `mcpServers`):
 
 **Note**: Update the path in `args` to match your actual installation location.
 
-### 4. Restart Claude Code
+For any other MCP client (Cursor, Codex CLI, Cline, Windsurf, a custom client, etc.),
+consult that client's docs for where its MCP config lives — the entry itself is the same
+`command: "node"` / `args: ["<path-to>/index.js"]` pair, since this server only relies on
+standard MCP-over-stdio and doesn't do anything Claude-specific.
 
-After updating the configuration, restart Claude Code for the changes to take effect.
+### 4. Restart Your MCP Client
+
+After updating the configuration, restart your client (Claude Code, or whichever agent
+you configured) for the changes to take effect.
 
 ## Usage
 
-Once configured, Claude Code will automatically have access to the llama.cpp tools. You can:
+Once configured, your agent will automatically have access to the llama.cpp tools. You can:
 
 ### Direct Usage
-Ask Claude to use specific tools:
+Ask the agent to use specific tools:
 - "Use llamacpp_generate_code to create a function that..."
 - "Use llamacpp_review_code to check this code for issues"
 - "Use llamacpp_server_info to check what model is loaded"
 
 ### Automatic Orchestration
-Simply ask Claude to do tasks, and it will decide when to delegate to llama.cpp:
-- "Write a function to parse JSON" → Claude may delegate to llama.cpp
-- "Review this code" → Claude may use llama.cpp for initial review, then add insights
-- "Fix this bug" → llama.cpp attempts fix, Claude verifies and corrects if needed
+Simply ask the agent to do tasks, and it will decide when to delegate to llama.cpp:
+- "Write a function to parse JSON" → the agent may delegate to llama.cpp
+- "Review this code" → the agent may use llama.cpp for initial review, then add insights
+- "Fix this bug" → llama.cpp attempts fix, the agent verifies and corrects if needed
 
 ## Customization
 
@@ -185,10 +197,10 @@ Add new tools by:
 - Check it's on the expected port: `curl http://localhost:8080/health`
 - Confirm `LLAMACPP_BASE_URL` (if set) matches where `llama-server` is actually listening
 
-### Tools Not Appearing in Claude Code
+### Tools Not Appearing in Your MCP Client
 - Verify the config path is correct
-- Restart Claude Code completely
-- Check Claude Code logs for MCP connection errors
+- Restart your client completely
+- Check your client's logs for MCP connection errors
 
 ### Slow Responses / Timeouts
 - **Expected behavior**: local model calls typically take 60-180 seconds depending on model size and hardware
@@ -201,27 +213,27 @@ Add new tools by:
 
 ### Basic Workflow
 1. **User asks**: "Create a function to validate email addresses"
-2. **Claude decides**: "This is a code generation task, I'll use llamacpp_generate_code"
+2. **Agent decides**: "This is a code generation task, I'll use llamacpp_generate_code"
 3. **llama.cpp generates**: Initial code implementation
-4. **Claude reviews**: Checks the code, may suggest improvements or fixes
-5. **Result**: User gets llama.cpp-generated code with Claude's oversight
+4. **Agent reviews**: Checks the code, may suggest improvements or fixes
+5. **Result**: User gets llama.cpp-generated code with the agent's oversight
 
 ### File-Aware Workflow (Token Saver!)
 1. **User asks**: "Review the code in index.js for security issues"
-2. **Claude calls**: `llamacpp_review_file` with the file path and focus="security"
+2. **Agent calls**: `llamacpp_review_file` with the file path and focus="security"
 3. **MCP server**: Reads index.js directly (no tokens used in conversation!)
 4. **llama.cpp analyzes**: Reviews the file
-5. **Claude refines**: Adds context or additional insights
+5. **Agent refines**: Adds context or additional insights
 6. **Token savings**: ~98.75% compared to reading the file into conversation first
 
 ### Multi-File Analysis Workflow
 1. **User asks**: "How do index.js and package.json relate?"
-2. **Claude calls**: `llamacpp_analyze_files` with both file paths
+2. **Agent calls**: `llamacpp_analyze_files` with both file paths
 3. **MCP server**: Reads both files server-side
 4. **llama.cpp analyzes**: Identifies dependencies, patterns, relationships
-5. **Result**: Cross-file insights without sending files through Claude conversation
+5. **Result**: Cross-file insights without sending files through the agent's conversation
 
-This hybrid approach gives you the speed and cost savings of local models with the intelligence and quality assurance of Claude.
+This hybrid approach gives you the speed and cost savings of local models with the intelligence and quality assurance of your orchestrating agent.
 
 ## Performance Expectations
 
@@ -239,13 +251,13 @@ Response time depends on:
 ### Token Usage
 - **Traditional approach**: Read 700-line file (2000 tokens) + Review (2000 tokens) = **4000 tokens**
 - **File-aware approach**: Call `llamacpp_review_file` with path = **~50 tokens**
-- **Savings**: ~98.75% reduction in Claude API token usage!
+- **Savings**: ~98.75% reduction in the orchestrating agent's API token usage!
 
 ## Benefits Over Pure Local or Pure Cloud
 
-- **vs Pure llama.cpp**: Claude provides architectural guidance, catches errors, and ensures quality
-- **vs Pure Claude**: Significant token savings on routine coding tasks (up to 98.75%!)
-- **Best of Both**: Local compute for heavy lifting, Claude for orchestration and refinement
+- **vs Pure llama.cpp**: Your cloud agent provides architectural guidance, catches errors, and ensures quality
+- **vs Pure Cloud Agent**: Significant token savings on routine coding tasks (up to 98.75%!)
+- **Best of Both**: Local compute for heavy lifting, your cloud agent for orchestration and refinement
 
 ## Project Structure
 
@@ -276,7 +288,7 @@ Potential enhancements to consider:
   by swapping the base URL
 - **Tool-calling passthrough**: Hand the model real tool definitions via llama-server's
   `--jinja` function-calling support instead of only returning prose
-- **`/tokenize` / `/embedding` tools**: Expose those primitives directly for non-Claude agents
+- **`/tokenize` / `/embedding` tools**: Expose those primitives directly for agents that want them
 - **Caching**: Cache file contents for repeated operations
 - **Glob support**: Pass patterns like `*.js` to analyze multiple files
 - **Auto-context**: Automatically find and include related files
