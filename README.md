@@ -56,7 +56,9 @@ npm install
 ### 2. Run `llama-server`
 
 Start `llama-server` with a model, with **`--jinja` enabled** so it applies the model's own
-chat template when this server calls `/v1/chat/completions`:
+chat template when this server calls `/v1/chat/completions` (recent `llama-server` builds
+enable this by default — pass `--jinja` explicitly anyway if you're not sure which build
+you're on, or use `--no-jinja` to opt out):
 
 ```bash
 llama-server -m /path/to/model.gguf --jinja --port 8080
@@ -159,6 +161,13 @@ Since requests go through `/v1/chat/completions` with `--jinja` enabled, `llama-
 applies the loaded model's *own* chat template on top of whatever system/user messages we
 send — so most models work well with the defaults, and overrides are only needed for
 genuine framing differences (e.g. reasoning-style models).
+
+For reasoning models (Qwen3.x, DeepSeek-R1/-V3.x, etc.), also start `llama-server` with
+`--reasoning-format deepseek`. This server only ever reads `message.content` from the
+response (see `callLlamaCpp` in `index.js`) — with `--reasoning-format deepseek`,
+`llama-server` splits the model's `<think>...</think>` output into a separate
+`message.reasoning_content` field and leaves `content` as just the final answer. Without
+it, raw thinking text leaks into every tool's returned output.
 
 ### Add New Tools
 
