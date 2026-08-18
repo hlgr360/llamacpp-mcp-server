@@ -69,10 +69,21 @@ llama-server -m /path/to/model.gguf --jinja --port 8080
 ```
 
 Optionally give it a friendly name with `--alias` (otherwise the model `id` reported by the
-server defaults to the gguf file path):
+server defaults to the gguf file path, or the HuggingFace repo:tag if loaded via `-hf`).
+For example, loading a model straight from HuggingFace with GPU offload and a larger
+context window:
 
 ```bash
-llama-server -m /path/to/gemma-3-12b.gguf --jinja --port 8080 --alias gemma3-12b
+llama-server -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_M -ngl 999 -fa on -c 65536 --port 8080
+```
+
+For reasoning models (like the Qwen3.6 example above, or DeepSeek-R1/-V3.x), also add
+`--reasoning-format deepseek` so the model's `<think>...</think>` output is split into
+`message.reasoning_content` instead of leaking into `message.content` — the only field
+this server reads (see "Prompt Templates" below for why that matters):
+
+```bash
+llama-server -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_M -ngl 999 -fa on -c 65536 --port 8080 --reasoning-format deepseek
 ```
 
 Verify it's up and see what it reports as loaded:
