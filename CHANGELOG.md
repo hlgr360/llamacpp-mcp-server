@@ -1,5 +1,19 @@
 # Changelog
 
+## Version 2.2.0 - Router/multi-model support
+
+### Features
+- `resolveModel` now accepts a `toolName` and, when `/v1/models` reports more than one
+  loaded model (e.g. behind a `llama-swap`-style router), consults a new
+  `TOOL_MODEL_PREFERENCES` map in `prompts.js` — a sparse, empty-by-default list of
+  preferred model families per tool — before falling back to whichever model is listed
+  first. A single-model setup (the common case) is completely unaffected: no preferences
+  configured means identical behavior to before.
+- The model-list cache (`fetchAvailableModels`, replacing the old single-model
+  `resolveModel` cache) is now shared across tools rather than tracking one resolved model,
+  so multiple tools resolving against the same model list still only cost one `/v1/models`
+  request within the 30s TTL.
+
 ## Version 2.1.0 - Tokenize and semantic similarity tools
 
 ### Features

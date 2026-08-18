@@ -4,9 +4,12 @@ import http from "http";
 // don't depend on a real model being loaded. `state.modelId`/`state.props`
 // can be mutated between requests to change what the mock reports; requests
 // are recorded in `state.requests` so tests can assert on what was sent.
+// Set `state.modelIds` (an array) instead of `state.modelId` to simulate a
+// multi-model router reporting more than one loaded model.
 export function startMockLlamaServer() {
   const state = {
     modelId: "mock-org/mock-model-7b",
+    modelIds: null,
     props: {
       default_generation_settings: { n_ctx: 4096 },
       total_slots: 1,
@@ -36,7 +39,8 @@ export function startMockLlamaServer() {
 
       if (req.method === "GET" && req.url === "/v1/models") {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ data: state.modelId ? [{ id: state.modelId }] : [] }));
+        const ids = state.modelIds ?? (state.modelId ? [state.modelId] : []);
+        res.end(JSON.stringify({ data: ids.map((id) => ({ id })) }));
         return;
       }
 

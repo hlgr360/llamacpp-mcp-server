@@ -1,9 +1,10 @@
-import { test, describe, before, after, beforeEach } from "node:test";
+import { test, describe, before, after, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { startMockLlamaServer } from "./helpers/mockLlamaServer.js";
+import { TOOL_MODEL_PREFERENCES } from "../prompts.js";
 
 let mock;
 let LlamaCppServer;
@@ -24,6 +25,7 @@ after(async () => {
 beforeEach(() => {
   mock.state.requests.length = 0;
   mock.state.modelId = "mock-org/mock-model-7b";
+  mock.state.modelIds = null;
 });
 
 describe("resolveModel", () => {
@@ -51,6 +53,52 @@ describe("resolveModel", () => {
     assert.equal(modelRequests.length, 1);
   });
 
+});
+
+describe("resolveModel with multiple models (router/multi-model support)", () => {
+  afterEach(() => {
+    delete TOOL_MODEL_PREFERENCES.write_tests;
+  });
+
+  test("single-model behavior is unaffected when no preferences are configured", async () => {
+    mock.state.modelIds = ["mock-org/mock-model-7b"];
+    const server = new LlamaCppServer();
+    const resolved = await server.resolveModel(undefined, "generate_code");
+    assert.equal(resolved.id, "mock-org/mock-model-7b");
+  });
+
+  test("with multiple models and no preference for the tool, falls back to the first one", async () => {
+    mock.state.modelIds = ["deepseek-coder-v2", "qwen2.5-coder"];
+    const server = new LlamaCppServer();
+    const resolved = await server.resolveModel(undefined, "generate_code");
+    assert.equal(resolved.id, "deepseek-coder-v2");
+  });
+
+  test("honors a configured preference, picking the first available matching family", async () => {
+    mock.state.modelIds = ["deepseek-coder-v2", "qwen2.5-coder"];
+    TOOL_MODEL_PREFERENCES.write_tests = ["qwen", "deepseek"];
+    const server = new LlamaCppServer();
+    const resolved = await server.resolveModel(undefined, "write_tests");
+    assert.equal(resolved.id, "qwen2.5-coder");
+    assert.equal(resolved.family, "qwen");
+  });
+
+  test("falls back to the first model when none of the preferred families are available", async () => {
+    mock.state.modelIds = ["llama-3-8b-instruct"];
+    TOOL_MODEL_PREFERENCES.write_tests = ["qwen", "deepseek"];
+    const server = new LlamaCppServer();
+    const resolved = await server.resolveModel(undefined, "write_tests");
+    assert.equal(resolved.id, "llama-3-8b-instruct");
+  });
+
+  test("caches the shared model list once regardless of how many tools resolve against it", async () => {
+    mock.state.modelIds = ["deepseek-coder-v2", "qwen2.5-coder"];
+    const server = new LlamaCppServer();
+    await server.resolveModel(undefined, "generate_code");
+    await server.resolveModel(undefined, "write_tests");
+    const modelRequests = mock.state.requests.filter((r) => r.url === "/v1/models");
+    assert.equal(modelRequests.length, 1);
+  });
 });
 
 describe("callLlamaCpp / tool methods", () => {

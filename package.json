@@ -1,6 +1,6 @@
 {
   "name": "llamacpp-mcp-server",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "MCP server bridging a local llama.cpp server to Claude Code and other coding agents",
   "type": "module",
   "license": "AGPL-3.0-only",

@@ -215,8 +215,21 @@ There's no hardcoded model anymore. Every tool call auto-detects whichever model
 `llama-server` currently has loaded (via `GET /v1/models`, cached for ~30 seconds), so
 switching models is just a matter of restarting `llama-server` with a different `-m`.
 You can still force a specific model per call by passing an explicit `model` argument to
-any tool — useful if you're running a router/`llama-swap` setup with more than one model
-available.
+any tool.
+
+**Router/multi-model setups** (e.g. `llama-swap` fronting several models): when
+`/v1/models` reports more than one entry, auto-detection consults `TOOL_MODEL_PREFERENCES`
+in `prompts.js` — a sparse map of tool name to an ordered list of preferred model families —
+before falling back to whichever model is listed first. It's empty by default, so a
+single-model setup (the common case) is completely unaffected. To use it, add your own
+entries:
+
+```js
+export const TOOL_MODEL_PREFERENCES = {
+  write_tests: ["qwen"],
+  fix_code: ["deepseek"],
+};
+```
 
 ### Prompt Templates (indexed by model family)
 
@@ -352,8 +365,6 @@ llamacpp-mcp-server/
 
 Potential enhancements to consider:
 - **Streaming responses**: Stream llama.cpp output for faster perceived performance
-- **Router/multi-model support**: Let the optional `model` arg pick from a `llama-swap`-style
-  multi-model setup instead of always using the single auto-detected model
 - **Provider-agnostic core**: Target any OpenAI-compatible local server (vLLM, LM Studio, etc.)
   by swapping the base URL
 - **Tool-calling passthrough**: Hand the model real tool definitions via llama-server's

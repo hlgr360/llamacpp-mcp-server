@@ -123,6 +123,14 @@ export const FAMILY_OVERRIDES = {
   },
 };
 
+// Sparse per-tool model-family preferences, for setups running more than one model behind
+// a router (e.g. llama-swap) where auto-detection has more than one candidate to choose
+// from. Each entry is an ordered list of preferred families; the first one present in
+// whatever /v1/models currently reports wins. Empty by default -- with a single model
+// loaded (the common case), there's nothing to choose between and this has no effect.
+// Populate your own, e.g. { write_tests: ["qwen"], fix_code: ["deepseek"] }.
+export const TOOL_MODEL_PREFERENCES = {};
+
 export function buildMessages(toolName, args, family) {
   const base = DEFAULT_PROMPTS[toolName];
   if (!base) {

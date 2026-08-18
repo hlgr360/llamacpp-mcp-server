@@ -10,7 +10,7 @@ import axios from "axios";
 import fs from "fs/promises";
 import { realpathSync } from "fs";
 import path from "path";
-import { buildMessages, resolveFamily } from "./prompts.js";
+import { buildMessages, resolveFamily, TOOL_MODEL_PREFERENCES } from "./prompts.js";
 
 const LLAMACPP_BASE_URL = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
 const MODEL_CACHE_TTL_MS = 30_000;
@@ -38,7 +38,7 @@ class LlamaCppServer {
     this.server = new Server(
       {
         name: "llamacpp-mcp-server",
-        version: "2.1.0",
+        version: "2.2.0",
       },
       {
         capabilities: {
@@ -47,8 +47,8 @@ class LlamaCppServer {
       }
     );
 
-    this.modelCache = null;
-    this.modelCacheAt = 0;
+    this.modelsCache = null;
+    this.modelsCacheAt = 0;
     this.tokenStats = { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, perTool: {} };
 
     this.setupToolHandlers();
@@ -389,31 +389,26 @@ class LlamaCppServer {
     return `Cannot connect to llama.cpp server. Make sure llama-server is running (default: ${LLAMACPP_BASE_URL}).`;
   }
 
-  async resolveModel(explicitModel) {
-    if (explicitModel) {
-      return { id: explicitModel, family: resolveFamily(explicitModel) };
-    }
-
+  async fetchAvailableModels() {
     const now = Date.now();
-    if (this.modelCache && now - this.modelCacheAt < MODEL_CACHE_TTL_MS) {
-      return this.modelCache;
+    if (this.modelsCache && now - this.modelsCacheAt < MODEL_CACHE_TTL_MS) {
+      return this.modelsCache;
     }
 
     try {
       const response = await axios.get(`${LLAMACPP_BASE_URL}/v1/models`, {
         timeout: 5000,
       });
-      const model = response.data?.data?.[0];
-      if (!model?.id) {
+      const models = response.data?.data ?? [];
+      if (models.length === 0) {
         throw new Error("llama.cpp server reported no loaded model");
       }
 
-      const resolved = { id: model.id, family: resolveFamily(model.id) };
-      this.modelCache = resolved;
-      this.modelCacheAt = now;
-      return resolved;
+      this.modelsCache = models;
+      this.modelsCacheAt = now;
+      return models;
     } catch (error) {
-      this.modelCache = null;
+      this.modelsCache = null;
       if (error.code === "ECONNREFUSED") {
         throw new Error(this.connectionErrorMessage(), { cause: error });
       }
@@ -421,9 +416,32 @@ class LlamaCppServer {
     }
   }
 
+  // Picks a model when the caller didn't specify one. With a single model loaded (the
+  // common case), always resolves to it. Behind a multi-model router (e.g. llama-swap),
+  // consults TOOL_MODEL_PREFERENCES for the given tool before falling back to whichever
+  // model /v1/models lists first.
+  async resolveModel(explicitModel, toolName) {
+    if (explicitModel) {
+      return { id: explicitModel, family: resolveFamily(explicitModel) };
+    }
+
+    const models = await this.fetchAvailableModels();
+
+    const preferredFamilies = TOOL_MODEL_PREFERENCES[toolName];
+    if (preferredFamilies) {
+      for (const family of preferredFamilies) {
+        const match = models.find((model) => resolveFamily(model.id) === family);
+        if (match) return { id: match.id, family };
+      }
+    }
+
+    const [first] = models;
+    return { id: first.id, family: resolveFamily(first.id) };
+  }
+
   async callLlamaCpp(toolName, args) {
     const { model: explicitModel, ...promptArgs } = args;
-    const resolved = await this.resolveModel(explicitModel);
+    const resolved = await this.resolveModel(explicitModel, toolName);
     const messages = buildMessages(toolName, promptArgs, resolved.family);
 
     try {
@@ -499,7 +517,7 @@ class LlamaCppServer {
 
   async semanticSimilarity(args) {
     const { query, candidates, model: explicitModel } = args;
-    const resolved = await this.resolveModel(explicitModel);
+    const resolved = await this.resolveModel(explicitModel, "semantic_similarity");
 
     try {
       const response = await axios.post(
