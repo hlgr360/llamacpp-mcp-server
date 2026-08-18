@@ -262,7 +262,7 @@ llamacpp_mcp/
 ├── package.json          # Node.js dependencies
 ├── README.md             # This file
 ├── AGENTS.md             # Priming notes for coding agents working in this repo
-├── test.md               # Manual test cases and validation guide
+├── TEST.md               # Manual test cases and validation guide
 └── .gitignore             # Git ignore patterns
 ```
 
@@ -282,4 +282,4 @@ Potential enhancements to consider:
 - **Auto-context**: Automatically find and include related files
 - **File writing**: Allow the model to write generated code directly to files
 
-See `test.md` for detailed test cases and validation procedures.
+See `TEST.md` for detailed test cases and validation procedures.

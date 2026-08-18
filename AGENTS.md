@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Priming notes for any coding agent (Claude Code, Codex, Cursor, etc.) working in this
-repo. For user-facing docs see `README.md`; for manual validation see `test.md`.
+repo. For user-facing docs see `README.md`; for manual validation see `TEST.md`.
 
 ## What this is
 
@@ -65,7 +65,7 @@ Running against a **real** `llama-server` requires it to already be up (default
 ## Known constraints
 
 - Single 15-minute request timeout (`callLlamaCpp`), intentionally generous for slow local
-  hardware — don't "fix" this down without checking `test.md`'s timing notes.
+  hardware — don't "fix" this down without checking `TEST.md`'s timing notes.
 - `LLAMACPP_BASE_URL` is read once at module import time as a top-level constant; it can't
   be changed per-instance at runtime. Tests that need a fresh backend URL do so in their
   own file/process (see `test/server-unreachable.test.js`).
