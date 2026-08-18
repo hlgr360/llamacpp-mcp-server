@@ -3,10 +3,16 @@
   "version": "2.0.0",
   "description": "MCP server bridging a local llama.cpp server to Claude Code and other coding agents",
   "type": "module",
+  "license": "AGPL-3.0-only",
   "main": "index.js",
   "bin": {
     "llamacpp-mcp-server": "index.js"
   },
+  "files": [
+    "index.js",
+    "prompts.js",
+    "CHANGELOG.md"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/hlgr360/llamacpp-mcp-server.git"
