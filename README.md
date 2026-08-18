@@ -55,10 +55,11 @@ These tools read files directly on the MCP server, dramatically reducing convers
 
 ## Setup Instructions
 
-Cloning this repo is currently required (see the note on `npx` below for why a no-clone
-install isn't available yet).
+You don't need to clone this repo to use it — see "Configure Your MCP Client" below for
+running it via `npx`. Cloning is only needed if you want to develop on it (run the test
+suite, edit `prompts.js`, etc.).
 
-### 1. Install Dependencies
+### 1. Install Dependencies (only if you cloned the repo)
 
 ```bash
 npm install
@@ -124,6 +125,37 @@ for Claude Code/Desktop as the reference example:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
+**Option A — no clone, install via `npx` from the npm registry (recommended):**
+
+```json
+{
+  "mcpServers": {
+    "llamacpp": {
+      "command": "npx",
+      "args": ["-y", "llamacpp-mcp-server"]
+    }
+  }
+}
+```
+
+**Option B — no clone, run straight from GitHub instead:**
+
+```json
+{
+  "mcpServers": {
+    "llamacpp": {
+      "command": "npx",
+      "args": ["-y", "github:hlgr360/llamacpp-mcp-server"]
+    }
+  }
+}
+```
+
+This tracks whatever is on `main` rather than a released version — pin to a tag or commit
+instead if you want stability, e.g. `github:hlgr360/llamacpp-mcp-server#v2.0.1`.
+
+**Option C — clone locally** (needed if you're developing on the server itself):
+
 ```json
 {
   "mcpServers": {
@@ -139,19 +171,8 @@ for Claude Code/Desktop as the reference example:
 
 For any other MCP client (Cursor, Codex CLI, Cline, Windsurf, a custom client, etc.),
 consult that client's docs for where its MCP config lives — the `mcpServers` entry itself
-is the same, since this server only relies on standard MCP-over-stdio and doesn't do
-anything Claude-specific.
-
-**A note on `npx` without cloning:** `npx -y github:hlgr360/llamacpp-mcp-server` looks like it
-should work the same way — it does install and resolve the `bin` entry correctly — but it
-does **not** work as an MCP server: `npm exec`'s git-dependency install path routes through
-`@npmcli/run-script`, which closes piped stdin immediately, before any real handshake can
-happen. That's fine for one-shot CLI tools but breaks anything needing a persistent
-stdio connection. This isn't a bug specific to this repo; it's how npm handles any
-`github:owner/repo` spec, confirmed by testing an identical setup against a real published
-MCP server via the plain npm registry, which worked fine. A published npm package (not a
-git-spec install) doesn't hit this path — that's the actual way to get no-clone `npx`
-support, and is planned but not yet published.
+is the same for any option above, since this server only relies on standard MCP-over-stdio
+and doesn't do anything Claude-specific.
 
 ### 4. Restart Your MCP Client
 

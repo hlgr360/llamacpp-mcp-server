@@ -1,5 +1,26 @@
 # Changelog
 
+## Version 2.0.1 - Fix npx/global-install startup bug
+
+### Fixes
+- **Critical**: `llamacpp-mcp-server@2.0.0` silently failed to start whenever invoked
+  through a symlink — which is exactly how npm's `node_modules/.bin/<name>` mechanism (and
+  therefore every `npx` or global install) always invokes a package's bin. The "only
+  auto-start when run directly" guard added in 2.0.0 compared `import.meta.url` against
+  the raw `process.argv[1]`; that matches for `node index.js` but never matches through a
+  symlink, since `import.meta.url` resolves through it while `argv[1]` doesn't. The result
+  was a clean, silent exit with zero output — no error, just nothing happening. Fixed by
+  realpath-resolving `process.argv[1]` before comparing.
+- Added `test/bin-symlink.test.js`: a regression test that invokes `index.js` through a
+  real symlink and verifies the server actually starts, since the existing integration
+  test (`node index.js` directly) can't exercise this failure mode at all.
+- **Correction**: 2.0.0's changelog claimed `npx github:hlgr360/llamacpp-mcp-server`
+  doesn't work because "npm's git-dependency install path closes piped stdin immediately."
+  That diagnosis was wrong — it was this same symlink bug the whole time, reproducible with
+  a plain `node` invocation through a symlink and no npm/npx involved at all. Both
+  `npx github:hlgr360/llamacpp-mcp-server` and `npx llamacpp-mcp-server` (from the npm
+  registry, once this version is published) work correctly.
+
 ## Version 2.0.0 - llama.cpp backend
 
 ### Breaking Changes
@@ -34,10 +55,9 @@
 - **ESLint**: flat config with `@eslint/js`'s recommended ruleset only (no style/formatting
   rules), run via `npm run lint`. Fixed everything it flagged, including 7 re-thrown errors
   that now pass `{ cause: error }` so the original stack isn't lost
-- Added a `bin` entry (`llamacpp-mcp-server` → `index.js`) in preparation for publishing to
-  npm. `npx github:hlgr360/llamacpp-mcp-server` was tried as a no-clone, no-publish alternative but
-  doesn't work: npm's git-dependency install path closes piped stdin immediately, breaking
-  any stdio-based MCP server. A real npm registry publish is still the plan.
+- Added a `bin` entry (`llamacpp-mcp-server` → `index.js`) enabling `npx`-based installs,
+  both directly from GitHub (`npx github:hlgr360/llamacpp-mcp-server`) and from the npm
+  registry. See 2.0.1 for a startup bug this introduced and its fix.
 - Repo transferred from `klopotek-rein` to `hlgr360` on GitHub, ahead of publishing to npm
   under the same personal account
 

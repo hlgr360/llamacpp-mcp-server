@@ -75,9 +75,12 @@ Running against a **real** `llama-server` requires it to already be up (default
 - `LLAMACPP_BASE_URL` is read once at module import time as a top-level constant; it can't
   be changed per-instance at runtime. Tests that need a fresh backend URL do so in their
   own file/process (see `test/server-unreachable.test.js`).
-- `index.js`'s shebang line and its `bin` entry in `package.json` exist for a future
-  published npm package (`npx llamacpp-mcp-server`), not yet published. Don't remove
-  either. Note: `npx github:hlgr360/llamacpp-mcp-server` (git-spec install) looks like it should
-  work but doesn't — `npm exec`'s git-dependency path closes piped stdin immediately via
-  `@npmcli/run-script`, before any MCP handshake can happen. See README's "A note on npx
-  without cloning" for details; only a real registry publish avoids that code path.
+- `index.js`'s shebang line, its `bin` entry in `package.json`, and the
+  `import.meta.url === file://${realpathSync(process.argv[1])}` auto-start guard are all
+  load-bearing for `npx llamacpp-mcp-server` / `npx github:hlgr360/llamacpp-mcp-server`
+  to work. **Don't simplify that guard back to comparing `process.argv[1]` directly** —
+  npm's `node_modules/.bin/<name>` mechanism always invokes a package's bin through a
+  symlink, and `import.meta.url` resolves through it while a non-realpath'd `argv[1]`
+  doesn't, so they'd silently never match. This exact regression shipped in 2.0.0 (fixed
+  in 2.0.1) — see `test/bin-symlink.test.js`, which is the only test that can catch it,
+  since a direct `node index.js` invocation (no symlink) can't reproduce the bug.
