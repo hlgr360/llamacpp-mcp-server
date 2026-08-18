@@ -38,6 +38,11 @@ Running against a **real** `llama-server` requires it to already be up (default
   `callLlamaCpp` also records each response's `usage` field on `this.tokenStats`
   (`recordTokenUsage`), which `llamacpp_session_stats` reports back — an in-memory,
   per-process counter, so it naturally scopes to one client session and resets on restart.
+  `getCodeGraphContext(query, cwd)` is a best-effort helper the four file-aware tools call:
+  if `cwd` (default `process.cwd()`) has a `.codegraph/` directory, it shells out to
+  `codegraph explore <query>` (binary overridable via `CODEGRAPH_BIN`, mainly for tests) and
+  folds the output into the prompt; any failure (no `.codegraph/`, missing binary, timeout)
+  returns `null` silently — never a hard dependency.
 - `prompts.js` — `DEFAULT_PROMPTS[toolName]` gives `{system, user(args)}`; sparse
   `FAMILY_OVERRIDES[family][toolName]` overrides either half for models that need
   different framing. `resolveFamily(modelId)` does simple substring matching (gemma, qwen,
@@ -84,3 +89,8 @@ Running against a **real** `llama-server` requires it to already be up (default
   doesn't, so they'd silently never match. This exact regression shipped in 2.0.0 (fixed
   in 2.0.1) — see `test/bin-symlink.test.js`, which is the only test that can catch it,
   since a direct `node index.js` invocation (no symlink) can't reproduce the bug.
+- `test/server.test.js` `chdir`s into its temp directory for the whole file, specifically
+  so `getCodeGraphContext`'s default `process.cwd()` doesn't accidentally find *this
+  repo's own* real `.codegraph/` index during test runs (which happened once — tests got
+  10x slower and non-hermetic before this fix). Keep that `chdir` if you add more tests
+  here; don't assume `process.cwd()` is a safe default to rely on in tests.

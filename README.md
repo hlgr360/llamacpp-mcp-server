@@ -264,6 +264,21 @@ response (see `callLlamaCpp` in `index.js`) — with `--reasoning-format deepsee
 `message.reasoning_content` field and leaves `content` as just the final answer. Without
 it, raw thinking text leaks into every tool's returned output.
 
+### CodeGraph Context Enrichment (optional)
+
+If the project being reviewed has a CodeGraph index (`.codegraph/` directory present, from
+the separately-installed `codegraph` CLI), the file-aware tools (`review_file`,
+`explain_file`, `analyze_files`, `generate_code_with_context`) automatically fold in
+`codegraph explore`'s output — call paths and blast radius, not just raw file content —
+before sending the prompt to the local model. A code review that also sees "here's what
+calls this function, here's what depends on it" is a materially better review than one
+that only sees the file in isolation.
+
+This is strictly best-effort: no `.codegraph/` directory, no `codegraph` binary on `PATH`,
+a slow response (5s timeout), or any other failure all silently fall back to no enrichment
+— CodeGraph is never a hard dependency for these tools to work. Override the binary used
+via the `CODEGRAPH_BIN` environment variable (mainly useful for testing).
+
 ### Add New Tools
 
 Add new tools by:
@@ -373,7 +388,6 @@ Potential enhancements to consider:
 - **Tool-calling passthrough**: Hand the model real tool definitions via llama-server's
   `--jinja` function-calling support instead of only returning prose
 - **Caching**: Cache file contents for repeated operations
-- **Auto-context**: Automatically find and include related files
 - **File writing**: Allow the model to write generated code directly to files
 
 See `TEST.md` for detailed test cases and validation procedures.

@@ -10,12 +10,18 @@ import axios from "axios";
 import fs from "fs/promises";
 import { realpathSync } from "fs";
 import path from "path";
+import { execFile } from "child_process";
+import { promisify } from "util";
 import { buildMessages, resolveFamily, TOOL_MODEL_PREFERENCES } from "./prompts.js";
+
+const execFileAsync = promisify(execFile);
 
 const LLAMACPP_BASE_URL = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
 const MODEL_CACHE_TTL_MS = 30_000;
 const GLOB_METACHARACTERS = /[*?[{]/;
 const MAX_GLOB_MATCHES = 50;
+const CODEGRAPH_CONTEXT_CHAR_LIMIT = 4000;
+const CODEGRAPH_TIMEOUT_MS = 5000;
 
 const MODEL_ARG_SCHEMA = {
   type: "string",
@@ -60,12 +66,37 @@ async function expandFilePaths(patterns) {
   return expanded;
 }
 
+// Best-effort CodeGraph enrichment: if the target project has a .codegraph/ index, runs
+// `codegraph explore <query>` and folds its output (call paths, blast radius) into the
+// prompt sent to the local model. Returns null on any failure -- no .codegraph/ directory,
+// the `codegraph` binary missing from PATH, a timeout, or a non-zero exit -- since this is
+// strictly additive and must never block a tool response or require CodeGraph to be
+// installed. The binary name is overridable via CODEGRAPH_BIN for testing.
+async function getCodeGraphContext(query, cwd = process.cwd()) {
+  try {
+    await fs.access(path.join(cwd, ".codegraph"));
+  } catch {
+    return null;
+  }
+
+  try {
+    const bin = process.env.CODEGRAPH_BIN || "codegraph";
+    const { stdout } = await execFileAsync(bin, ["explore", query], {
+      cwd,
+      timeout: CODEGRAPH_TIMEOUT_MS,
+    });
+    return stdout.slice(0, CODEGRAPH_CONTEXT_CHAR_LIMIT);
+  } catch {
+    return null;
+  }
+}
+
 class LlamaCppServer {
   constructor() {
     this.server = new Server(
       {
         name: "llamacpp-mcp-server",
-        version: "2.3.0",
+        version: "2.4.0",
       },
       {
         capabilities: {
@@ -620,12 +651,14 @@ class LlamaCppServer {
     const { file_path, focus, model } = args;
     const code = await this.readFile(file_path);
     const fileName = path.basename(file_path);
+    const codeGraphContext = await getCodeGraphContext(fileName);
 
     const response = await this.callLlamaCpp("review_file", {
       code,
       focus,
       fileName,
       filePath: file_path,
+      codeGraphContext,
       model,
     });
     return { content: [{ type: "text", text: response }] };
@@ -635,12 +668,14 @@ class LlamaCppServer {
     const { file_path, context, model } = args;
     const code = await this.readFile(file_path);
     const fileName = path.basename(file_path);
+    const codeGraphContext = await getCodeGraphContext(fileName);
 
     const response = await this.callLlamaCpp("explain_file", {
       code,
       context,
       fileName,
       filePath: file_path,
+      codeGraphContext,
       model,
     });
     return { content: [{ type: "text", text: response }] };
@@ -657,10 +692,12 @@ class LlamaCppServer {
         return `FILE: ${fileName}\nPATH: ${filePath}\n\nCODE:\n${content}\n\n${"=".repeat(80)}\n`;
       })
     );
+    const codeGraphContext = await getCodeGraphContext(expandedPaths.map((p) => path.basename(p)).join(" "));
 
     const response = await this.callLlamaCpp("analyze_files", {
       task,
       filesContent: filesContent.join("\n"),
+      codeGraphContext,
       model,
     });
     return { content: [{ type: "text", text: response }] };
@@ -670,6 +707,7 @@ class LlamaCppServer {
     const { prompt, language, context_files, model } = args;
 
     let contextSection = "";
+    let codeGraphContext = null;
     if (context_files && context_files.length > 0) {
       const expandedContextFiles = await expandFilePaths(context_files);
       const contextContent = await Promise.all(
@@ -680,12 +718,14 @@ class LlamaCppServer {
         })
       );
       contextSection = `\n\nREFERENCE FILES (for context and patterns):\n${contextContent.join("\n")}`;
+      codeGraphContext = await getCodeGraphContext(expandedContextFiles.map((p) => path.basename(p)).join(" "));
     }
 
     const response = await this.callLlamaCpp("generate_code_with_context", {
       prompt,
       language,
       contextSection,
+      codeGraphContext,
       model,
     });
     return { content: [{ type: "text", text: response }] };

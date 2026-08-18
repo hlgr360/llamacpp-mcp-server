@@ -1,5 +1,16 @@
 # Changelog
 
+## Version 2.4.0 - CodeGraph context enrichment
+
+### Features
+- The file-aware tools (`llamacpp_review_file`, `llamacpp_explain_file`,
+  `llamacpp_analyze_files`, `llamacpp_generate_code_with_context`) now automatically fold
+  in `codegraph explore`'s output (call paths, blast radius) when the target project has a
+  CodeGraph index (`.codegraph/` directory present) — a materially better review than one
+  that only sees a file in isolation. Strictly best-effort: no `.codegraph/`, no `codegraph`
+  binary on `PATH`, a slow response (5s timeout), or any other failure all silently fall
+  back to no enrichment. The binary is overridable via `CODEGRAPH_BIN` (mainly for tests).
+
 ## Version 2.3.0 - Glob support for multi-file tools
 
 ### Features

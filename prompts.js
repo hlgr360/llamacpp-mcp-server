@@ -78,7 +78,7 @@ export const DEFAULT_PROMPTS = {
     system:
       "You are a code review assistant. Provide specific, actionable feedback including:\n1. Issues or bugs found\n2. Potential improvements\n3. Best practice violations\n4. Security concerns (if applicable)\n\nBe concise and specific.",
     user: (args) =>
-      `Review the following file with focus on ${args.focus || "general code quality"}:\n\nFILE: ${args.fileName}\nPATH: ${args.filePath}\n\nCODE:\n${args.code}`,
+      `Review the following file with focus on ${args.focus || "general code quality"}:\n\nFILE: ${args.fileName}\nPATH: ${args.filePath}\n\nCODE:\n${args.code}${codeGraphSection(args)}`,
   },
 
   explain_file: {
@@ -87,22 +87,29 @@ export const DEFAULT_PROMPTS = {
     user: (args) =>
       `Explain the following file in detail:\n\nFILE: ${args.fileName}\nPATH: ${args.filePath}\n\nCODE:\n${args.code}${
         args.context ? `\n\nContext: ${args.context}` : ""
-      }`,
+      }${codeGraphSection(args)}`,
   },
 
   analyze_files: {
     system:
       "You are a code analysis assistant. Provide a comprehensive analysis addressing the task. Focus on relationships, patterns, and insights across all files.",
-    user: (args) => `TASK: ${args.task}\n\n${args.filesContent}`,
+    user: (args) => `TASK: ${args.task}\n\n${args.filesContent}${codeGraphSection(args)}`,
   },
 
   generate_code_with_context: {
     system:
       "You are a code generation assistant. Generate clean, well-commented code based on the requirements given, following the patterns shown in the reference files. Respond with ONLY the code, no explanations or markdown formatting. Make sure the code is production-ready.",
     user: (args) =>
-      `Language: ${args.language}\n\nREQUIREMENTS:\n${args.prompt}${args.contextSection || ""}`,
+      `Language: ${args.language}\n\nREQUIREMENTS:\n${args.prompt}${args.contextSection || ""}${codeGraphSection(args)}`,
   },
 };
+
+// Shared by the four file-aware tools above: folds in CodeGraph-derived context (call
+// paths, blast radius) when index.js's getCodeGraphContext() found a .codegraph/ index for
+// the project, empty string otherwise.
+function codeGraphSection(args) {
+  return args.codeGraphContext ? `\n\nCODEGRAPH CONTEXT (call paths, blast radius):\n${args.codeGraphContext}` : "";
+}
 
 // Sparse per-family overrides. Only populate an entry where a model family
 // genuinely needs different framing than the default — most families are fine

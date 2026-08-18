@@ -9,15 +9,22 @@ import { TOOL_MODEL_PREFERENCES } from "../prompts.js";
 let mock;
 let LlamaCppServer;
 let tmpDir;
+let originalCwd;
 
 before(async () => {
   mock = await startMockLlamaServer();
   process.env.LLAMACPP_BASE_URL = mock.url;
   ({ LlamaCppServer } = await import("../index.js"));
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "llamacpp-mcp-test-"));
+  // getCodeGraphContext() defaults to process.cwd() -- chdir into a directory
+  // guaranteed to have no .codegraph/, so these tests stay hermetic instead of
+  // accidentally hitting this repo's own real CodeGraph index.
+  originalCwd = process.cwd();
+  process.chdir(tmpDir);
 });
 
 after(async () => {
+  process.chdir(originalCwd);
   await mock.close();
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
@@ -322,5 +329,55 @@ describe("semanticSimilarity", () => {
     const embeddingRequest = mock.state.requests.find((r) => r.url === "/v1/embeddings");
     assert.equal(embeddingRequest.body.model, "explicit-embed-model");
     assert.deepEqual(embeddingRequest.body.input, ["a", "b"]);
+  });
+});
+
+describe("CodeGraph context enrichment (via reviewFile)", () => {
+  afterEach(async () => {
+    delete process.env.CODEGRAPH_BIN;
+    await fs.rm(path.join(tmpDir, ".codegraph"), { recursive: true, force: true });
+  });
+
+  test("omits codegraph context when no .codegraph/ directory exists", async () => {
+    const filePath = path.join(tmpDir, "no-codegraph.js");
+    await fs.writeFile(filePath, "const x = 1;");
+
+    const server = new LlamaCppServer();
+    await server.reviewFile({ file_path: filePath, focus: "bugs" });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    assert.doesNotMatch(chatRequest.body.messages[1].content, /CODEGRAPH CONTEXT/);
+  });
+
+  test("includes codegraph output when .codegraph/ exists and the binary succeeds", async () => {
+    await fs.mkdir(path.join(tmpDir, ".codegraph"));
+    const stubBinPath = path.join(tmpDir, "fake-codegraph.sh");
+    await fs.writeFile(stubBinPath, "#!/bin/sh\necho 'FAKE_CODEGRAPH_OUTPUT_MARKER'\n");
+    await fs.chmod(stubBinPath, 0o755);
+    process.env.CODEGRAPH_BIN = stubBinPath;
+
+    const filePath = path.join(tmpDir, "with-codegraph.js");
+    await fs.writeFile(filePath, "const x = 1;");
+
+    const server = new LlamaCppServer();
+    await server.reviewFile({ file_path: filePath, focus: "bugs" });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    assert.match(chatRequest.body.messages[1].content, /FAKE_CODEGRAPH_OUTPUT_MARKER/);
+  });
+
+  test("falls back silently (tool still succeeds) when .codegraph/ exists but the binary is missing", async () => {
+    await fs.mkdir(path.join(tmpDir, ".codegraph"));
+    process.env.CODEGRAPH_BIN = "/definitely/not/a/real/binary";
+
+    const filePath = path.join(tmpDir, "missing-binary.js");
+    await fs.writeFile(filePath, "const x = 1;");
+
+    const server = new LlamaCppServer();
+    const result = await server.reviewFile({ file_path: filePath, focus: "bugs" });
+    assert.ok(result.content[0].text);
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    assert.doesNotMatch(chatRequest.body.messages[1].content, /CODEGRAPH CONTEXT/);
   });
 });
