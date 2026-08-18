@@ -1,5 +1,27 @@
 # Changelog
 
+## Version 2.0.0 - llama.cpp backend
+
+### Breaking Changes
+- Switched backend from Ollama (`/api/generate`, `localhost:11434`) to llama.cpp's
+  `llama-server` (`/v1/chat/completions`, `localhost:8080` by default, overridable via
+  `LLAMACPP_BASE_URL`)
+- All 11 tools renamed from `ollama_*` to `llamacpp_*`
+- Server name changed to `llamacpp-mcp-server`
+
+### Features
+- **No hardcoded model**: `DEFAULT_MODEL`/`FALLBACK_MODEL` constants removed. The server
+  auto-detects whichever model `llama-server` currently has loaded via `GET /v1/models`
+  (cached ~30s), with an optional per-call `model` argument to override
+- **Prompts indexed by model family**: new `prompts.js` holds a `DEFAULT_PROMPTS` registry
+  per tool plus a sparse `FAMILY_OVERRIDES` map keyed by detected model family (`gemma`,
+  `qwen`, `deepseek`, `llama`, `mistral`, `phi`, `codestral`, `generic`)
+- **Structured chat requests**: tool calls now send `{system, user}` messages through
+  `/v1/chat/completions` instead of hand-built raw prompt strings, letting `llama-server`
+  (with `--jinja`) apply the loaded model's own chat template
+- New `llamacpp_server_info` tool: reports loaded model id/family, context size, slot
+  count, and chat-template presence
+
 ## Version 1.0.0 - Initial Release
 
 ### Features

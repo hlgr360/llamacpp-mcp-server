@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "ollama": {
+    "llamacpp": {
       "command": "node",
-      "args": ["G:\\Projects\\OllamaClaude\\index.js"]
+      "args": ["/Users/holger/repos/github/llamacpp_mcp/index.js"]
     }
   }
 }

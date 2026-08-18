@@ -1,7 +1,7 @@
 {
-  "name": "ollama-mcp-server",
-  "version": "1.0.0",
-  "description": "MCP server for integrating Ollama with Claude Code",
+  "name": "llamacpp-mcp-server",
+  "version": "2.0.0",
+  "description": "MCP server bridging a local llama.cpp server to Claude Code and other coding agents",
   "type": "module",
   "main": "index.js",
   "scripts": {

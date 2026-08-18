@@ -9,19 +9,23 @@ import {
 import axios from "axios";
 import fs from "fs/promises";
 import path from "path";
+import { buildMessages, resolveFamily } from "./prompts.js";
 
-const OLLAMA_BASE_URL = "http://localhost:11434";
+const LLAMACPP_BASE_URL = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
+const MODEL_CACHE_TTL_MS = 30_000;
 
-// Available models - you can customize this
-const DEFAULT_MODEL = "gemma3:12b";
-const FALLBACK_MODEL = "gemma3:4b";
+const MODEL_ARG_SCHEMA = {
+  type: "string",
+  description:
+    "Optional model override. If omitted, the model currently loaded by the llama.cpp server is auto-detected.",
+};
 
-class OllamaServer {
+class LlamaCppServer {
   constructor() {
     this.server = new Server(
       {
-        name: "ollama-mcp-server",
-        version: "1.0.0",
+        name: "llamacpp-mcp-server",
+        version: "2.0.0",
       },
       {
         capabilities: {
@@ -29,6 +33,9 @@ class OllamaServer {
         },
       }
     );
+
+    this.modelCache = null;
+    this.modelCacheAt = 0;
 
     this.setupToolHandlers();
 
@@ -43,8 +50,8 @@ class OllamaServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
-          name: "ollama_generate_code",
-          description: "Generate code using Ollama. Use this for writing new functions, classes, or code snippets. Provide detailed requirements and context.",
+          name: "llamacpp_generate_code",
+          description: "Generate code using your local llama.cpp server. Use this for writing new functions, classes, or code snippets. Provide detailed requirements and context.",
           inputSchema: {
             type: "object",
             properties: {
@@ -56,18 +63,14 @@ class OllamaServer {
                 type: "string",
                 description: "Programming language (e.g., javascript, python, rust)",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: mistral-small)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["prompt", "language"],
           },
         },
         {
-          name: "ollama_explain_code",
-          description: "Explain how code works using Ollama. Use this to understand complex code sections, algorithms, or patterns.",
+          name: "llamacpp_explain_code",
+          description: "Explain how code works using your local llama.cpp server. Use this to understand complex code sections, algorithms, or patterns.",
           inputSchema: {
             type: "object",
             properties: {
@@ -79,18 +82,14 @@ class OllamaServer {
                 type: "string",
                 description: "Additional context about what you want to understand",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: mistral-small)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["code"],
           },
         },
         {
-          name: "ollama_review_code",
-          description: "Review code for issues, bugs, or improvements using Ollama. Use this for code quality checks and suggestions.",
+          name: "llamacpp_review_code",
+          description: "Review code for issues, bugs, or improvements using your local llama.cpp server. Use this for code quality checks and suggestions.",
           inputSchema: {
             type: "object",
             properties: {
@@ -103,18 +102,14 @@ class OllamaServer {
                 description: "What to focus on (e.g., 'performance', 'security', 'best practices', 'bugs')",
                 default: "general code quality",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: mistral-small)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["code"],
           },
         },
         {
-          name: "ollama_refactor_code",
-          description: "Refactor code to improve quality, readability, or structure using Ollama.",
+          name: "llamacpp_refactor_code",
+          description: "Refactor code to improve quality, readability, or structure using your local llama.cpp server.",
           inputSchema: {
             type: "object",
             properties: {
@@ -126,18 +121,14 @@ class OllamaServer {
                 type: "string",
                 description: "Refactoring goal (e.g., 'improve readability', 'reduce complexity', 'modernize syntax')",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: mistral-small)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["code", "goal"],
           },
         },
         {
-          name: "ollama_fix_code",
-          description: "Fix bugs or errors in code using Ollama. Provide the broken code and error details.",
+          name: "llamacpp_fix_code",
+          description: "Fix bugs or errors in code using your local llama.cpp server. Provide the broken code and error details.",
           inputSchema: {
             type: "object",
             properties: {
@@ -149,18 +140,14 @@ class OllamaServer {
                 type: "string",
                 description: "Error message or description of the problem",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: mistral-small)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["code", "error"],
           },
         },
         {
-          name: "ollama_write_tests",
-          description: "Generate unit tests for code using Ollama.",
+          name: "llamacpp_write_tests",
+          description: "Generate unit tests for code using your local llama.cpp server.",
           inputSchema: {
             type: "object",
             properties: {
@@ -172,18 +159,14 @@ class OllamaServer {
                 type: "string",
                 description: "Testing framework to use (e.g., 'jest', 'pytest', 'mocha')",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: mistral-small)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["code", "framework"],
           },
         },
         {
-          name: "ollama_general_task",
-          description: "Execute any general coding task using Ollama. Use this for tasks that don't fit other categories.",
+          name: "llamacpp_general_task",
+          description: "Execute any general coding task using your local llama.cpp server. Use this for tasks that don't fit other categories.",
           inputSchema: {
             type: "object",
             properties: {
@@ -195,18 +178,14 @@ class OllamaServer {
                 type: "string",
                 description: "Any relevant context, code, or background information",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: mistral-small)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["task"],
           },
         },
         {
-          name: "ollama_review_file",
-          description: "Review a file by path using Ollama. The MCP server reads the file directly, reducing token usage.",
+          name: "llamacpp_review_file",
+          description: "Review a file by path using your local llama.cpp server. The MCP server reads the file directly, reducing token usage.",
           inputSchema: {
             type: "object",
             properties: {
@@ -219,18 +198,14 @@ class OllamaServer {
                 description: "What to focus on (e.g., 'performance', 'security', 'best practices', 'bugs')",
                 default: "general code quality",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: gemma3:27b)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["file_path"],
           },
         },
         {
-          name: "ollama_explain_file",
-          description: "Explain a file by path using Ollama. The MCP server reads the file directly, reducing token usage.",
+          name: "llamacpp_explain_file",
+          description: "Explain a file by path using your local llama.cpp server. The MCP server reads the file directly, reducing token usage.",
           inputSchema: {
             type: "object",
             properties: {
@@ -242,18 +217,14 @@ class OllamaServer {
                 type: "string",
                 description: "Additional context about what you want to understand",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: gemma3:27b)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["file_path"],
           },
         },
         {
-          name: "ollama_analyze_files",
-          description: "Analyze multiple files together using Ollama. Useful for understanding relationships between files.",
+          name: "llamacpp_analyze_files",
+          description: "Analyze multiple files together using your local llama.cpp server. Useful for understanding relationships between files.",
           inputSchema: {
             type: "object",
             properties: {
@@ -266,18 +237,14 @@ class OllamaServer {
                 type: "string",
                 description: "What analysis to perform (e.g., 'find dependencies', 'check consistency', 'summarize architecture')",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: gemma3:27b)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["file_paths", "task"],
           },
         },
         {
-          name: "ollama_generate_code_with_context",
-          description: "Generate code using Ollama with context from existing files. Reads reference files to understand patterns.",
+          name: "llamacpp_generate_code_with_context",
+          description: "Generate code using your local llama.cpp server with context from existing files. Reads reference files to understand patterns.",
           inputSchema: {
             type: "object",
             properties: {
@@ -294,13 +261,17 @@ class OllamaServer {
                 items: { type: "string" },
                 description: "Array of file paths to use as context/examples",
               },
-              model: {
-                type: "string",
-                description: "Ollama model to use (default: gemma3:27b)",
-                default: DEFAULT_MODEL,
-              },
+              model: MODEL_ARG_SCHEMA,
             },
             required: ["prompt", "language"],
+          },
+        },
+        {
+          name: "llamacpp_server_info",
+          description: "Report which model the local llama.cpp server currently has loaded, its context size, and its capabilities. Use this to check what's actually running before assuming a model or capability.",
+          inputSchema: {
+            type: "object",
+            properties: {},
           },
         },
       ],
@@ -311,28 +282,30 @@ class OllamaServer {
 
       try {
         switch (name) {
-          case "ollama_generate_code":
+          case "llamacpp_generate_code":
             return await this.generateCode(args);
-          case "ollama_explain_code":
+          case "llamacpp_explain_code":
             return await this.explainCode(args);
-          case "ollama_review_code":
+          case "llamacpp_review_code":
             return await this.reviewCode(args);
-          case "ollama_refactor_code":
+          case "llamacpp_refactor_code":
             return await this.refactorCode(args);
-          case "ollama_fix_code":
+          case "llamacpp_fix_code":
             return await this.fixCode(args);
-          case "ollama_write_tests":
+          case "llamacpp_write_tests":
             return await this.writeTests(args);
-          case "ollama_general_task":
+          case "llamacpp_general_task":
             return await this.generalTask(args);
-          case "ollama_review_file":
+          case "llamacpp_review_file":
             return await this.reviewFile(args);
-          case "ollama_explain_file":
+          case "llamacpp_explain_file":
             return await this.explainFile(args);
-          case "ollama_analyze_files":
+          case "llamacpp_analyze_files":
             return await this.analyzeFiles(args);
-          case "ollama_generate_code_with_context":
+          case "llamacpp_generate_code_with_context":
             return await this.generateCodeWithContext(args);
+          case "llamacpp_server_info":
+            return await this.serverInfo();
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -349,13 +322,53 @@ class OllamaServer {
     });
   }
 
-  async callOllama(prompt, model = DEFAULT_MODEL) {
+  connectionErrorMessage() {
+    return `Cannot connect to llama.cpp server. Make sure llama-server is running (default: ${LLAMACPP_BASE_URL}).`;
+  }
+
+  async resolveModel(explicitModel) {
+    if (explicitModel) {
+      return { id: explicitModel, family: resolveFamily(explicitModel) };
+    }
+
+    const now = Date.now();
+    if (this.modelCache && now - this.modelCacheAt < MODEL_CACHE_TTL_MS) {
+      return this.modelCache;
+    }
+
+    try {
+      const response = await axios.get(`${LLAMACPP_BASE_URL}/v1/models`, {
+        timeout: 5000,
+      });
+      const model = response.data?.data?.[0];
+      if (!model?.id) {
+        throw new Error("llama.cpp server reported no loaded model");
+      }
+
+      const resolved = { id: model.id, family: resolveFamily(model.id) };
+      this.modelCache = resolved;
+      this.modelCacheAt = now;
+      return resolved;
+    } catch (error) {
+      this.modelCache = null;
+      if (error.code === "ECONNREFUSED") {
+        throw new Error(this.connectionErrorMessage());
+      }
+      throw new Error(`Failed to discover model from llama.cpp server: ${error.message}`);
+    }
+  }
+
+  async callLlamaCpp(toolName, args) {
+    const { model: explicitModel, ...promptArgs } = args;
+    const resolved = await this.resolveModel(explicitModel);
+    const messages = buildMessages(toolName, promptArgs, resolved.family);
+
     try {
       const response = await axios.post(
-        `${OLLAMA_BASE_URL}/api/generate`,
+        `${LLAMACPP_BASE_URL}/v1/chat/completions`,
         {
-          model: model,
-          prompt: prompt,
+          model: resolved.id,
+          messages,
           stream: false,
         },
         {
@@ -363,180 +376,48 @@ class OllamaServer {
         }
       );
 
-      return response.data.response;
+      return response.data.choices[0].message.content;
     } catch (error) {
       if (error.code === "ECONNREFUSED") {
-        throw new Error(
-          "Cannot connect to Ollama. Make sure Ollama is running on localhost:11434"
-        );
+        throw new Error(this.connectionErrorMessage());
       }
-      throw new Error(`Ollama error: ${error.message}`);
+      throw new Error(`llama.cpp error: ${error.message}`);
     }
   }
 
   async generateCode(args) {
-    const { prompt, language, model } = args;
-    const fullPrompt = `You are a code generation assistant. Generate clean, well-commented ${language} code based on the following requirements:
-
-${prompt}
-
-Respond with ONLY the code, no explanations or markdown formatting. Make sure the code is production-ready and follows best practices.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("generate_code", args);
+    return { content: [{ type: "text", text: response }] };
   }
 
   async explainCode(args) {
-    const { code, context, model } = args;
-    const fullPrompt = `You are a code explanation assistant. Explain the following code in detail:
-
-${code}
-
-${context ? `Context: ${context}` : ""}
-
-Provide a clear, comprehensive explanation of what this code does, how it works, and any important patterns or considerations.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("explain_code", args);
+    return { content: [{ type: "text", text: response }] };
   }
 
   async reviewCode(args) {
-    const { code, focus, model } = args;
-    const fullPrompt = `You are a code review assistant. Review the following code with focus on ${focus}:
-
-${code}
-
-Provide specific, actionable feedback including:
-1. Issues or bugs found
-2. Potential improvements
-3. Best practice violations
-4. Security concerns (if applicable)
-
-Be concise and specific.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("review_code", args);
+    return { content: [{ type: "text", text: response }] };
   }
 
   async refactorCode(args) {
-    const { code, goal, model } = args;
-    const fullPrompt = `You are a code refactoring assistant. Refactor the following code with the goal to ${goal}:
-
-${code}
-
-Provide the refactored code with a brief explanation of the changes made. Format your response as:
-
-REFACTORED CODE:
-[code here]
-
-CHANGES MADE:
-[brief explanation]`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("refactor_code", args);
+    return { content: [{ type: "text", text: response }] };
   }
 
   async fixCode(args) {
-    const { code, error, model } = args;
-    const fullPrompt = `You are a debugging assistant. Fix the following code that has this error:
-
-ERROR: ${error}
-
-CODE:
-${code}
-
-Provide the fixed code with a brief explanation of what was wrong and how you fixed it. Format your response as:
-
-FIXED CODE:
-[code here]
-
-EXPLANATION:
-[brief explanation of the fix]`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("fix_code", args);
+    return { content: [{ type: "text", text: response }] };
   }
 
   async writeTests(args) {
-    const { code, framework, model } = args;
-    const fullPrompt = `You are a test writing assistant. Write comprehensive unit tests for the following code using ${framework}:
-
-${code}
-
-Generate complete, runnable tests with good coverage of different scenarios including edge cases. Include only the test code, properly formatted for ${framework}.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("write_tests", args);
+    return { content: [{ type: "text", text: response }] };
   }
 
   async generalTask(args) {
-    const { task, context, model } = args;
-    const fullPrompt = `You are a coding assistant. Complete the following task:
-
-TASK: ${task}
-
-${context ? `CONTEXT:\n${context}` : ""}
-
-Provide a clear, complete response.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("general_task", args);
+    return { content: [{ type: "text", text: response }] };
   }
 
   async readFile(filePath) {
@@ -553,32 +434,14 @@ Provide a clear, complete response.`;
     const code = await this.readFile(file_path);
     const fileName = path.basename(file_path);
 
-    const fullPrompt = `You are a code review assistant. Review the following file with focus on ${focus}:
-
-FILE: ${fileName}
-PATH: ${file_path}
-
-CODE:
-${code}
-
-Provide specific, actionable feedback including:
-1. Issues or bugs found
-2. Potential improvements
-3. Best practice violations
-4. Security concerns (if applicable)
-
-Be concise and specific.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("review_file", {
+      code,
+      focus,
+      fileName,
+      filePath: file_path,
+      model,
+    });
+    return { content: [{ type: "text", text: response }] };
   }
 
   async explainFile(args) {
@@ -586,28 +449,14 @@ Be concise and specific.`;
     const code = await this.readFile(file_path);
     const fileName = path.basename(file_path);
 
-    const fullPrompt = `You are a code explanation assistant. Explain the following file in detail:
-
-FILE: ${fileName}
-PATH: ${file_path}
-
-CODE:
-${code}
-
-${context ? `Context: ${context}` : ""}
-
-Provide a clear, comprehensive explanation of what this file does, how it works, and any important patterns or considerations.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("explain_file", {
+      code,
+      context,
+      fileName,
+      filePath: file_path,
+      model,
+    });
+    return { content: [{ type: "text", text: response }] };
   }
 
   async analyzeFiles(args) {
@@ -621,24 +470,12 @@ Provide a clear, comprehensive explanation of what this file does, how it works,
       })
     );
 
-    const fullPrompt = `You are a code analysis assistant. Analyze the following files together:
-
-TASK: ${task}
-
-${filesContent.join("\n")}
-
-Provide a comprehensive analysis addressing the task. Focus on relationships, patterns, and insights across all files.`;
-
-    const response = await this.callOllama(fullPrompt, model);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+    const response = await this.callLlamaCpp("analyze_files", {
+      task,
+      filesContent: filesContent.join("\n"),
+      model,
+    });
+    return { content: [{ type: "text", text: response }] };
   }
 
   async generateCodeWithContext(args) {
@@ -656,32 +493,51 @@ Provide a comprehensive analysis addressing the task. Focus on relationships, pa
       contextSection = `\n\nREFERENCE FILES (for context and patterns):\n${contextContent.join("\n")}`;
     }
 
-    const fullPrompt = `You are a code generation assistant. Generate clean, well-commented ${language} code based on the following requirements:
+    const response = await this.callLlamaCpp("generate_code_with_context", {
+      prompt,
+      language,
+      contextSection,
+      model,
+    });
+    return { content: [{ type: "text", text: response }] };
+  }
 
-REQUIREMENTS:
-${prompt}
-${contextSection}
+  async serverInfo() {
+    try {
+      const [propsResponse, modelsResponse] = await Promise.all([
+        axios.get(`${LLAMACPP_BASE_URL}/props`, { timeout: 5000 }),
+        axios.get(`${LLAMACPP_BASE_URL}/v1/models`, { timeout: 5000 }),
+      ]);
 
-Respond with ONLY the code, no explanations or markdown formatting. Make sure the code is production-ready and follows best practices shown in the reference files.`;
+      const model = modelsResponse.data?.data?.[0];
+      const props = propsResponse.data;
 
-    const response = await this.callOllama(fullPrompt, model);
+      const info = {
+        base_url: LLAMACPP_BASE_URL,
+        model_id: model?.id ?? null,
+        model_family: model?.id ? resolveFamily(model.id) : null,
+        context_size: props?.default_generation_settings?.n_ctx ?? props?.n_ctx ?? null,
+        total_slots: props?.total_slots ?? null,
+        has_chat_template: Boolean(props?.chat_template),
+      };
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: response,
-        },
-      ],
-    };
+      return {
+        content: [{ type: "text", text: JSON.stringify(info, null, 2) }],
+      };
+    } catch (error) {
+      if (error.code === "ECONNREFUSED") {
+        throw new Error(this.connectionErrorMessage());
+      }
+      throw new Error(`Failed to fetch llama.cpp server info: ${error.message}`);
+    }
   }
 
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("Ollama MCP server running on stdio");
+    console.error(`llama.cpp MCP server running on stdio (target: ${LLAMACPP_BASE_URL})`);
   }
 }
 
-const server = new OllamaServer();
+const server = new LlamaCppServer();
 server.run();

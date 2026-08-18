@@ -1,19 +1,19 @@
-# Ollama MCP Server - Test Documentation
+# llama.cpp MCP Server - Test Documentation
 
-This file contains test cases and examples for validating the Ollama MCP server functionality, especially the new file-aware tools.
+This file contains test cases and examples for validating the llama.cpp MCP server functionality, especially the file-aware tools.
 
 ## Purpose
 
 Use this file to:
 1. Verify that the MCP server is working correctly after changes
 2. Test the file-aware tools that reduce token usage
-3. Stress test Ollama integration with real project files
+3. Stress test the llama.cpp integration with real project files
 
 ## Important Notes
 
-- **Timeout Considerations**: Ollama calls typically take 60-180 seconds with gemma3:12b on a single GPU. Be patient!
-- **Model**: Default model is `gemma3:12b` with `gemma3:4b` as fallback
-- **Restart Required**: After modifying `index.js`, restart Claude Code to reload the MCP server
+- **Timeout Considerations**: local model calls typically take 60-180 seconds depending on model size and hardware. Be patient!
+- **Model**: no model is hardcoded — the server auto-detects whatever `llama-server` currently has loaded via `GET /v1/models`
+- **Restart Required**: After modifying `index.js` or `prompts.js`, restart Claude Code to reload the MCP server
 
 ## Test Cases
 
@@ -22,16 +22,16 @@ Use this file to:
 These tools accept code as strings - useful when code is already in context:
 
 ```
-Test: ollama_explain_code
+Test: llamacpp_explain_code
 - Pass a small code snippet
-- Verify Ollama explains it correctly
+- Verify the response explains it correctly
 - Expected time: 60-120 seconds
 ```
 
 ```
-Test: ollama_review_code
+Test: llamacpp_review_code
 - Pass a code snippet with potential issues
-- Check if Ollama identifies problems
+- Check if the response identifies problems
 - Expected time: 60-120 seconds
 ```
 
@@ -39,46 +39,45 @@ Test: ollama_review_code
 
 These tools read files directly on the MCP server, reducing conversation token usage:
 
-#### Test: ollama_review_file
+#### Test: llamacpp_review_file
 
 ```javascript
 // Usage example:
 {
-  file_path: "G:\\Projects\\OllamaClaude\\index.js",
-  focus: "error handling",
-  model: "gemma3:12b"
+  file_path: "/Users/holger/repos/github/llamacpp_mcp/index.js",
+  focus: "error handling"
 }
 ```
 
 **Expected behavior:**
 - MCP server reads the file internally
-- Sends file content to Ollama
+- Sends file content to llama.cpp
 - Returns code review focused on error handling
 - **Token savings**: File content doesn't go through Claude conversation
 
-#### Test: ollama_explain_file
+#### Test: llamacpp_explain_file
 
 ```javascript
 // Usage example:
 {
-  file_path: "G:\\Projects\\OllamaClaude\\package.json",
+  file_path: "/Users/holger/repos/github/llamacpp_mcp/package.json",
   context: "Focus on dependencies and their purposes"
 }
 ```
 
 **Expected behavior:**
 - MCP server reads package.json
-- Ollama explains the file structure and dependencies
+- llama.cpp explains the file structure and dependencies
 - **Token savings**: No need to read/paste file in conversation
 
-#### Test: ollama_analyze_files
+#### Test: llamacpp_analyze_files
 
 ```javascript
 // Usage example:
 {
   file_paths: [
-    "G:\\Projects\\OllamaClaude\\index.js",
-    "G:\\Projects\\OllamaClaude\\package.json"
+    "/Users/holger/repos/github/llamacpp_mcp/index.js",
+    "/Users/holger/repos/github/llamacpp_mcp/package.json"
   ],
   task: "Analyze how the dependencies in package.json are used in index.js"
 }
@@ -86,26 +85,37 @@ These tools read files directly on the MCP server, reducing conversation token u
 
 **Expected behavior:**
 - MCP server reads both files
-- Ollama analyzes relationships between them
+- llama.cpp analyzes relationships between them
 - Returns insights about dependency usage
 - **Token savings**: Multiple files read server-side
 
-#### Test: ollama_generate_code_with_context
+#### Test: llamacpp_generate_code_with_context
 
 ```javascript
 // Usage example:
 {
   prompt: "Create a new tool handler method following the same pattern",
   language: "javascript",
-  context_files: ["G:\\Projects\\OllamaClaude\\index.js"]
+  context_files: ["/Users/holger/repos/github/llamacpp_mcp/index.js"]
 }
 ```
 
 **Expected behavior:**
 - MCP server reads reference file(s)
-- Ollama generates code matching the existing patterns
+- llama.cpp generates code matching the existing patterns
 - Returns code that follows project conventions
 - **Token savings**: Reference files handled server-side
+
+#### Test: llamacpp_server_info
+
+```javascript
+// Usage example (no args):
+{}
+```
+
+**Expected behavior:**
+- Returns JSON with `model_id`, `model_family`, `context_size`, `total_slots`, `has_chat_template`
+- Matches whatever model `llama-server` was started with
 
 ### 3. Stress Tests
 
@@ -116,8 +126,8 @@ Test analyzing 3-4 files together to verify:
 - Quality of cross-file analysis
 
 #### Large File Review
-Test with the full index.js file (600+ lines):
-- Verify timeout is sufficient (120 seconds default)
+Test with the full index.js file (400+ lines):
+- Verify timeout is sufficient (15 minutes default)
 - Check if response is complete or truncated
 - Test different focus areas (performance, security, best practices)
 
@@ -125,26 +135,26 @@ Test with the full index.js file (600+ lines):
 
 After making changes to the MCP server:
 
-- [ ] Run `node --check index.js` to verify syntax
+- [ ] Run `node --check index.js` and `node --check prompts.js` to verify syntax
 - [ ] Restart Claude Code to reload MCP server
-- [ ] Verify new tools appear in Claude's tool list (check for `mcp__ollama__` prefix)
+- [ ] Verify new tools appear in Claude's tool list (check for `mcp__llamacpp__` prefix)
 - [ ] Test at least one file-aware tool with a real project file
-- [ ] Confirm Ollama is running (`http://localhost:11434`)
+- [ ] Confirm `llama-server` is running (`curl http://localhost:8080/health`)
 - [ ] Check that timeout warnings appear if calls take too long
-- [ ] Verify error handling (try invalid file paths)
+- [ ] Verify error handling (try invalid file paths, and try stopping `llama-server` to confirm the friendly connection error)
 
 ## Token Usage Comparison
 
 ### Before (String-Based)
 ```
 Claude: Read file (2000 tokens)
-Claude: Call ollama_review_code with content (2000 tokens sent)
+Claude: Call llamacpp_review_code with content (2000 tokens sent)
 Total conversation tokens: ~4000
 ```
 
 ### After (File-Aware)
 ```
-Claude: Call ollama_review_file with path (50 tokens)
+Claude: Call llamacpp_review_file with path (50 tokens)
 MCP Server: Reads file internally (0 conversation tokens)
 Total conversation tokens: ~50
 ```
@@ -153,45 +163,45 @@ Total conversation tokens: ~50
 
 ## Common Issues
 
-### Issue: "Cannot connect to Ollama"
-**Solution**: Ensure Ollama is running with `ollama serve`
+### Issue: "Cannot connect to llama.cpp server"
+**Solution**: Ensure `llama-server` is running with `llama-server -m <model.gguf> --jinja --port 8080`
 
 ### Issue: "Timeout exceeded"
 **Solution**:
 - Expected for large files or complex tasks
-- Consider using smaller model (`gemma3:4b`) for simpler tasks
-- Increase timeout in `index.js` if needed (currently 900000ms = 15 minutes)
+- Consider using a smaller/faster model for simpler tasks
+- Increase timeout in `index.js` if needed (currently 900000ms = 15 minutes, in `callLlamaCpp`)
 
 ### Issue: "Tools not appearing"
 **Solution**:
-- Verify `claude_desktop_config.json` has correct path to `index.js`
+- Verify `claude-mcp-config.json` (or your Claude Desktop config) has correct path to `index.js`
 - Restart Claude Code completely
 - Check MCP server logs for connection errors
 
 ### Issue: "File not found"
 **Solution**:
-- Use absolute paths (e.g., `G:\\Projects\\...`)
+- Use absolute paths
 - Verify file exists before calling tool
-- Check path escaping on Windows (use double backslashes or forward slashes)
 
 ## Example Test Session
 
 ```
 1. Verify server is running:
-   - Check Claude's available tools for mcp__ollama__ tools
+   - Check Claude's available tools for mcp__llamacpp__ tools
+   - Call llamacpp_server_info and confirm it reports the expected model
 
 2. Simple test:
-   - Use ollama_explain_file on package.json
+   - Use llamacpp_explain_file on package.json
    - Wait 60-120 seconds
    - Verify response makes sense
 
 3. Advanced test:
-   - Use ollama_analyze_files with index.js and package.json
+   - Use llamacpp_analyze_files with index.js and package.json
    - Task: "Identify which npm packages are imported and used"
    - Verify cross-file analysis works
 
 4. Token savings test:
-   - Compare using ollama_review_code (paste file) vs ollama_review_file (path)
+   - Compare using llamacpp_review_code (paste file) vs llamacpp_review_file (path)
    - Observe token usage difference in conversation
 ```
 
@@ -199,16 +209,17 @@ Total conversation tokens: ~50
 
 When these features are added, test them here:
 
+- [ ] Streaming: verify partial output surfaces before the full response completes
+- [ ] Router/multi-model: verify passing an explicit `model` picks the right one
 - [ ] Caching: Repeated calls on same file should be faster
 - [ ] Glob support: Pass patterns like `*.js` instead of individual files
-- [ ] Session memory: Maintain context across multiple Ollama calls
 - [ ] Auto-context: Server automatically finds related files
 - [ ] File writing: Generate code directly to files
 
 ## Notes for Future Self
 
 - The file-aware tools are a huge token saver - use them whenever possible!
-- Don't forget the 90-300 second wait time for Ollama responses
+- Don't forget the 60-180 second wait time for local model responses
 - Test with real project files to ensure patterns work in practice
 - Consider creating smaller test files if full project files cause timeouts
 - Remember: MCP server runs in Node.js, has full file system access within its permissions
