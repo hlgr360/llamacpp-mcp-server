@@ -14,7 +14,7 @@ stands in for `llama-server`'s `/v1/models`, `/v1/chat/completions`, and `/props
   tools, `serverInfo`
 - `test/server-unreachable.test.js` — the friendly connection-error path when `llama-server` is down
 - `test/integration.test.js` — spawns the real `node index.js` entry point and drives it over MCP
-  JSON-RPC (`tools/list`, `tools/call`), the same way Claude Code does
+  JSON-RPC (`tools/list`, `tools/call`), the same way any MCP client (Claude Code, Cursor, etc.) does
 
 These are regression tests for the plumbing (routing, caching, error messages, prompt construction) —
 they don't tell you whether a given model's actual output is good. Everything below this section is
@@ -31,7 +31,7 @@ Use this file to:
 
 - **Timeout Considerations**: local model calls typically take 60-180 seconds depending on model size and hardware. Be patient!
 - **Model**: no model is hardcoded — the server auto-detects whatever `llama-server` currently has loaded via `GET /v1/models`
-- **Restart Required**: After modifying `index.js` or `prompts.js`, restart Claude Code to reload the MCP server
+- **Restart Required**: After modifying `index.js` or `prompts.js`, restart your MCP client to reload the MCP server
 - **`--jinja`**: enabled by default on recent `llama-server` builds, so the model's own chat template is applied automatically. Verify with `curl http://localhost:8080/props | jq '.chat_template'` — real Jinja source (macros/loops) means it's active.
 - **`--reasoning-format deepseek`**: needed for reasoning models (Qwen3.x, DeepSeek-R1/-V3.x). Without it, `<think>` output leaks into `message.content`, which is the only field this server reads and returns from every tool. See README's "Prompt Templates" section for details.
 
@@ -73,7 +73,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 - MCP server reads the file internally
 - Sends file content to llama.cpp
 - Returns code review focused on error handling
-- **Token savings**: File content doesn't go through Claude conversation
+- **Token savings**: File content doesn't go through the orchestrating agent's conversation
 
 #### Test: llamacpp_explain_file
 
@@ -158,8 +158,8 @@ After making changes to the MCP server:
 - [ ] Run `npm test` to check routing/caching/prompt logic against the mock backend
 - [ ] Run `npm run lint` (ESLint) to catch unused vars, undefined refs, etc.
 - [ ] Run `node --check index.js` and `node --check prompts.js` to verify syntax
-- [ ] Restart Claude Code to reload MCP server
-- [ ] Verify new tools appear in Claude's tool list (check for `mcp__llamacpp__` prefix)
+- [ ] Restart your MCP client to reload the MCP server
+- [ ] Verify new tools appear in your client's tool list (Claude Code prefixes them `mcp__llamacpp__`)
 - [ ] Test at least one file-aware tool with a real project file
 - [ ] Confirm `llama-server` is running (`curl http://localhost:8080/health`)
 - [ ] Check that timeout warnings appear if calls take too long
@@ -169,14 +169,14 @@ After making changes to the MCP server:
 
 ### Before (String-Based)
 ```
-Claude: Read file (2000 tokens)
-Claude: Call llamacpp_review_code with content (2000 tokens sent)
+Agent: Read file (2000 tokens)
+Agent: Call llamacpp_review_code with content (2000 tokens sent)
 Total conversation tokens: ~4000
 ```
 
 ### After (File-Aware)
 ```
-Claude: Call llamacpp_review_file with path (50 tokens)
+Agent: Call llamacpp_review_file with path (50 tokens)
 MCP Server: Reads file internally (0 conversation tokens)
 Total conversation tokens: ~50
 ```
@@ -196,8 +196,9 @@ Total conversation tokens: ~50
 
 ### Issue: "Tools not appearing"
 **Solution**:
-- Verify `claude-mcp-config.json` (or your Claude Desktop config) has correct path to `index.js`
-- Restart Claude Code completely
+- Verify your MCP client's config (`claude-mcp-config.json` is the shipped example for Claude
+  Code/Desktop) has the correct path to `index.js`
+- Restart your MCP client completely
 - Check MCP server logs for connection errors
 
 ### Issue: "File not found"
@@ -209,7 +210,8 @@ Total conversation tokens: ~50
 
 ```
 1. Verify server is running:
-   - Check Claude's available tools for mcp__llamacpp__ tools
+   - Check your client's tool list for the llamacpp_* tools (Claude Code shows them as
+     mcp__llamacpp__<tool>)
    - Call llamacpp_server_info and confirm it reports the expected model
 
 2. Simple test:
