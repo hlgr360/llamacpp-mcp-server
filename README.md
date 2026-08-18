@@ -253,9 +253,16 @@ Response time depends on:
 llamacpp_mcp/
 ├── index.js              # Main MCP server implementation
 ├── prompts.js            # Prompt registry, indexed by model family
+├── test/                 # Automated test suite (npm test) — mocked llama-server backend
+│   ├── helpers/mockLlamaServer.js
+│   ├── prompts.test.js
+│   ├── server.test.js
+│   ├── server-unreachable.test.js
+│   └── integration.test.js
 ├── package.json          # Node.js dependencies
 ├── README.md             # This file
-├── test.md               # Test cases and validation guide
+├── AGENTS.md             # Priming notes for coding agents working in this repo
+├── test.md               # Manual test cases and validation guide
 └── .gitignore             # Git ignore patterns
 ```
 

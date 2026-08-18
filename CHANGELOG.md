@@ -21,6 +21,18 @@
   (with `--jinja`) apply the loaded model's own chat template
 - New `llamacpp_server_info` tool: reports loaded model id/family, context size, slot
   count, and chat-template presence
+- **Automated test suite**: `npm test` (`node --test`) covers model resolution/caching,
+  prompt building, file-aware tools, and the real MCP `tools/list`/`tools/call` routing
+  against a mocked `llama-server`, no real model or network needed. `index.js` now exports
+  `LlamaCppServer` and only auto-starts when run directly, so it's importable by tests
+- **`AGENTS.md`**: priming notes for coding agents working in this repo
+
+### Notes
+- `--jinja` is enabled by default on recent `llama-server` builds (no longer needs passing
+  explicitly, though it's harmless to)
+- Reasoning models (Qwen3.x, DeepSeek-R1/-V3.x) need `--reasoning-format deepseek` on
+  `llama-server`, otherwise `<think>` output leaks into `message.content` — the only field
+  `callLlamaCpp` reads
 
 ## Version 1.0.0 - Initial Release
 
