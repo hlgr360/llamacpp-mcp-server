@@ -14,6 +14,8 @@ import { buildMessages, resolveFamily, TOOL_MODEL_PREFERENCES } from "./prompts.
 
 const LLAMACPP_BASE_URL = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
 const MODEL_CACHE_TTL_MS = 30_000;
+const GLOB_METACHARACTERS = /[*?[{]/;
+const MAX_GLOB_MATCHES = 50;
 
 const MODEL_ARG_SCHEMA = {
   type: "string",
@@ -33,12 +35,37 @@ function cosineSimilarity(a, b) {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+// Expands any glob patterns (entries containing *, ?, [, or {) into absolute file paths;
+// plain literal paths pass through unchanged. Relative patterns resolve against
+// process.cwd(). Throws if the total expansion exceeds MAX_GLOB_MATCHES, so a broad
+// pattern like "**/*.js" can't silently balloon a request into hundreds of files.
+async function expandFilePaths(patterns) {
+  const expanded = [];
+  for (const pattern of patterns) {
+    if (!GLOB_METACHARACTERS.test(pattern)) {
+      expanded.push(pattern);
+      continue;
+    }
+    for await (const match of fs.glob(pattern)) {
+      expanded.push(path.resolve(match));
+    }
+  }
+
+  if (expanded.length > MAX_GLOB_MATCHES) {
+    throw new Error(
+      `Glob pattern(s) matched ${expanded.length} files, which exceeds the limit of ${MAX_GLOB_MATCHES}. Narrow your pattern(s).`
+    );
+  }
+
+  return expanded;
+}
+
 class LlamaCppServer {
   constructor() {
     this.server = new Server(
       {
         name: "llamacpp-mcp-server",
-        version: "2.2.0",
+        version: "2.3.0",
       },
       {
         capabilities: {
@@ -621,9 +648,10 @@ class LlamaCppServer {
 
   async analyzeFiles(args) {
     const { file_paths, task, model } = args;
+    const expandedPaths = await expandFilePaths(file_paths);
 
     const filesContent = await Promise.all(
-      file_paths.map(async (filePath) => {
+      expandedPaths.map(async (filePath) => {
         const content = await this.readFile(filePath);
         const fileName = path.basename(filePath);
         return `FILE: ${fileName}\nPATH: ${filePath}\n\nCODE:\n${content}\n\n${"=".repeat(80)}\n`;
@@ -643,8 +671,9 @@ class LlamaCppServer {
 
     let contextSection = "";
     if (context_files && context_files.length > 0) {
+      const expandedContextFiles = await expandFilePaths(context_files);
       const contextContent = await Promise.all(
-        context_files.map(async (filePath) => {
+        expandedContextFiles.map(async (filePath) => {
           const content = await this.readFile(filePath);
           const fileName = path.basename(filePath);
           return `EXAMPLE FILE: ${fileName}\n${content}\n\n${"=".repeat(80)}\n`;

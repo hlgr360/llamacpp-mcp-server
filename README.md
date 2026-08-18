@@ -40,8 +40,11 @@ These tools read files directly on the MCP server, dramatically reducing convers
 
 8. **llamacpp_review_file** - Review a file by path (saves ~98.75% tokens vs reading + reviewing)
 9. **llamacpp_explain_file** - Explain a file by path
-10. **llamacpp_analyze_files** - Analyze multiple files together to understand relationships
-11. **llamacpp_generate_code_with_context** - Generate code using existing files as reference patterns
+10. **llamacpp_analyze_files** - Analyze multiple files together to understand relationships.
+    `file_paths` entries may be glob patterns (e.g. `src/**/*.js`), expanded server-side
+    (capped at 50 matched files)
+11. **llamacpp_generate_code_with_context** - Generate code using existing files as reference
+    patterns. `context_files` also supports glob patterns, same as above
 
 ### Introspection
 
@@ -370,7 +373,6 @@ Potential enhancements to consider:
 - **Tool-calling passthrough**: Hand the model real tool definitions via llama-server's
   `--jinja` function-calling support instead of only returning prose
 - **Caching**: Cache file contents for repeated operations
-- **Glob support**: Pass patterns like `*.js` to analyze multiple files
 - **Auto-context**: Automatically find and include related files
 - **File writing**: Allow the model to write generated code directly to files
 

@@ -154,6 +154,60 @@ describe("callLlamaCpp / tool methods", () => {
     assert.match(userMessage, /const b = 2/);
   });
 
+  test("analyzeFiles expands a glob pattern into matching files", async () => {
+    const fileA = path.join(tmpDir, "glob-a.js");
+    const fileB = path.join(tmpDir, "glob-b.js");
+    await fs.writeFile(fileA, "const a = 1;");
+    await fs.writeFile(fileB, "const b = 2;");
+
+    const server = new LlamaCppServer();
+    await server.analyzeFiles({ file_paths: [path.join(tmpDir, "glob-*.js")], task: "find shared patterns" });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    const userMessage = chatRequest.body.messages[1].content;
+    assert.match(userMessage, /glob-a\.js/);
+    assert.match(userMessage, /glob-b\.js/);
+  });
+
+  test("generateCodeWithContext expands a glob pattern in context_files", async () => {
+    const fileA = path.join(tmpDir, "ctx-glob-a.js");
+    await fs.writeFile(fileA, "const a = 1;");
+
+    const server = new LlamaCppServer();
+    await server.generateCodeWithContext({
+      prompt: "x",
+      language: "javascript",
+      context_files: [path.join(tmpDir, "ctx-glob-*.js")],
+    });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    const userMessage = chatRequest.body.messages[1].content;
+    assert.match(userMessage, /ctx-glob-a\.js/);
+  });
+
+  test("rejects a glob pattern that matches too many files", async () => {
+    for (let i = 0; i < 51; i++) {
+      await fs.writeFile(path.join(tmpDir, `many-${i}.js`), "// x");
+    }
+
+    const server = new LlamaCppServer();
+    await assert.rejects(
+      () => server.analyzeFiles({ file_paths: [path.join(tmpDir, "many-*.js")], task: "x" }),
+      /exceeds the limit/
+    );
+  });
+
+  test("a plain literal path with no glob metacharacters is unaffected", async () => {
+    const filePath = path.join(tmpDir, "literal.js");
+    await fs.writeFile(filePath, "const literal = true;");
+
+    const server = new LlamaCppServer();
+    await server.analyzeFiles({ file_paths: [filePath], task: "x" });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    assert.match(chatRequest.body.messages[1].content, /const literal = true/);
+  });
+
   test("an explicit model argument overrides auto-detection for the actual request", async () => {
     const server = new LlamaCppServer();
     await server.generateCode({ prompt: "x", language: "python", model: "deepseek-explicit" });

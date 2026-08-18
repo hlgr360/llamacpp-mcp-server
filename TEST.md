@@ -109,6 +109,9 @@ These tools read files directly on the MCP server, reducing conversation token u
 - Returns insights about dependency usage
 - **Token savings**: Multiple files read server-side
 
+`file_paths` also accepts glob patterns instead of listing every file, e.g.
+`file_paths: ["test/*.test.js"]` — expanded server-side, capped at 50 matched files.
+
 #### Test: llamacpp_generate_code_with_context
 
 ```javascript

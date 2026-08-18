@@ -1,5 +1,22 @@
 # Changelog
 
+## Version 2.3.0 - Glob support for multi-file tools
+
+### Features
+- `llamacpp_analyze_files` (`file_paths`) and `llamacpp_generate_code_with_context`
+  (`context_files`) now accept glob patterns (e.g. `src/**/*.js`) alongside plain literal
+  paths, expanded server-side via Node's built-in `fs.glob`. Expansion is capped at 50
+  matched files with a clear error if exceeded, so a broad pattern can't silently balloon a
+  request into hundreds of files and enormous token usage sent to the local model.
+  `llamacpp_review_file`/`llamacpp_explain_file` are unchanged (still single-file tools).
+
+### Breaking Changes
+- **`engines.node` raised from `>=18.0.0` to `>=22.0.0`** — required for the built-in
+  `fs.glob`/`fs.promises.glob` API used above. No new runtime dependency was added; this
+  project has consistently preferred Node built-ins over dependencies (`node:test` over a
+  test framework, a hand-rolled mock server over `nock`/`msw`) and this follows the same
+  reasoning.
+
 ## Version 2.2.0 - Router/multi-model support
 
 ### Features
