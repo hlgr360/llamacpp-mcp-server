@@ -32,6 +32,8 @@ Use this file to:
 - **Timeout Considerations**: local model calls typically take 60-180 seconds depending on model size and hardware. Be patient!
 - **Model**: no model is hardcoded — the server auto-detects whatever `llama-server` currently has loaded via `GET /v1/models`
 - **Restart Required**: After modifying `index.js` or `prompts.js`, restart Claude Code to reload the MCP server
+- **`--jinja`**: enabled by default on recent `llama-server` builds, so the model's own chat template is applied automatically. Verify with `curl http://localhost:8080/props | jq '.chat_template'` — real Jinja source (macros/loops) means it's active.
+- **`--reasoning-format deepseek`**: needed for reasoning models (Qwen3.x, DeepSeek-R1/-V3.x). Without it, `<think>` output leaks into `message.content`, which is the only field this server reads and returns from every tool. See README's "Prompt Templates" section for details.
 
 ## Test Cases
 
