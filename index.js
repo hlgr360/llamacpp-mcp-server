@@ -539,5 +539,9 @@ class LlamaCppServer {
   }
 }
 
-const server = new LlamaCppServer();
-server.run();
+export { LlamaCppServer };
+
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const server = new LlamaCppServer();
+  server.run();
+}

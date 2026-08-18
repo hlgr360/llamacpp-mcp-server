@@ -2,6 +2,24 @@
 
 This file contains test cases and examples for validating the llama.cpp MCP server functionality, especially the file-aware tools.
 
+## Automated Tests
+
+Run `npm test` to check the tool routing, prompt building, and file-handling logic without needing
+a running `llama-server` or waiting on real model inference — a mock HTTP backend in `test/helpers/`
+stands in for `llama-server`'s `/v1/models`, `/v1/chat/completions`, and `/props` endpoints.
+
+- `test/prompts.test.js` — `resolveFamily()` and `buildMessages()`: family detection and per-family
+  prompt overrides
+- `test/server.test.js` — `LlamaCppServer` methods directly: model resolution/caching, file-aware
+  tools, `serverInfo`
+- `test/server-unreachable.test.js` — the friendly connection-error path when `llama-server` is down
+- `test/integration.test.js` — spawns the real `node index.js` entry point and drives it over MCP
+  JSON-RPC (`tools/list`, `tools/call`), the same way Claude Code does
+
+These are regression tests for the plumbing (routing, caching, error messages, prompt construction) —
+they don't tell you whether a given model's actual output is good. Everything below this section is
+still the manual checklist for that, run against a real `llama-server`.
+
 ## Purpose
 
 Use this file to:
@@ -135,6 +153,7 @@ Test with the full index.js file (400+ lines):
 
 After making changes to the MCP server:
 
+- [ ] Run `npm test` to check routing/caching/prompt logic against the mock backend
 - [ ] Run `node --check index.js` and `node --check prompts.js` to verify syntax
 - [ ] Restart Claude Code to reload MCP server
 - [ ] Verify new tools appear in Claude's tool list (check for `mcp__llamacpp__` prefix)
