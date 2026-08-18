@@ -53,6 +53,17 @@ These tools read files directly on the MCP server, dramatically reducing convers
     based on the `usage` field `llama-server` returns per request. Answers "how many tokens
     have actually been offloaded to the local model instead of my own context?"
 
+### Primitives
+
+14. **llamacpp_tokenize** - Counts how many tokens a piece of text would consume according to
+    the currently loaded tokenizer, via `llama-server`'s native `/tokenize` endpoint. Useful
+    for checking context-window fit before sending large content.
+15. **llamacpp_semantic_similarity** - Ranks candidate texts by semantic similarity to a query
+    using `llama-server`'s embedding endpoint (`/v1/embeddings` — requires `llama-server` to
+    be started with `--embeddings`). Returns similarity scores only, never raw embedding
+    vectors, since a 768-4096 float vector serialized as tool output would dump thousands of
+    tokens back into the calling agent's context — the opposite of this project's point.
+
 ## Setup Instructions
 
 You don't need to clone this repo to use it — see "Configure Your MCP Client" below for
@@ -347,7 +358,6 @@ Potential enhancements to consider:
   by swapping the base URL
 - **Tool-calling passthrough**: Hand the model real tool definitions via llama-server's
   `--jinja` function-calling support instead of only returning prose
-- **`/tokenize` / `/embedding` tools**: Expose those primitives directly for agents that want them
 - **Caching**: Cache file contents for repeated operations
 - **Glob support**: Pass patterns like `*.js` to analyze multiple files
 - **Auto-context**: Automatically find and include related files

@@ -1,5 +1,19 @@
 # Changelog
 
+## Version 2.1.0 - Tokenize and semantic similarity tools
+
+### Features
+- New `llamacpp_tokenize` tool: reports how many tokens a piece of text would consume
+  according to the currently loaded tokenizer, via `llama-server`'s native `/tokenize`
+  endpoint. Returns just `{ token_count }` by default; pass `include_tokens: true` to also
+  get the raw token ID array.
+- New `llamacpp_semantic_similarity` tool: ranks candidate texts by semantic similarity to
+  a query via `llama-server`'s OpenAI-compatible `/v1/embeddings` endpoint (requires
+  `llama-server` to be started with `--embeddings`). Deliberately returns similarity scores
+  only, never raw embedding vectors — a 768-4096 float vector serialized as tool output
+  would dump thousands of tokens back into the calling agent's context, undermining this
+  project's entire token-savings premise.
+
 ## Version 2.0.1 - Fix npx/global-install startup bug
 
 ### Fixes

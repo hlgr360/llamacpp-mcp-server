@@ -15,6 +15,16 @@ export function startMockLlamaServer() {
     requests: [],
     chatResponse: (body) => `echo:${JSON.stringify(body.messages)}`,
     usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+    tokenize: (content) => Array.from({ length: Math.max(1, Math.ceil(content.length / 4)) }, (_, i) => i),
+    // Default: a crude per-string vector (char-code based) so identical text
+    // always embeds identically and different text embeds differently.
+    // Tests that need exact similarity control override this directly.
+    embeddings: (inputs) =>
+      inputs.map((text) => {
+        const vector = [0, 0, 0];
+        for (let i = 0; i < text.length; i++) vector[i % 3] += text.charCodeAt(i);
+        return vector;
+      }),
   };
 
   const server = http.createServer((req, res) => {
@@ -44,6 +54,19 @@ export function startMockLlamaServer() {
             usage: state.usage,
           })
         );
+        return;
+      }
+
+      if (req.method === "POST" && req.url === "/tokenize") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ tokens: state.tokenize(body.content) }));
+        return;
+      }
+
+      if (req.method === "POST" && req.url === "/v1/embeddings") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        const vectors = state.embeddings(body.input);
+        res.end(JSON.stringify({ data: vectors.map((embedding, index) => ({ embedding, index })) }));
         return;
       }
 

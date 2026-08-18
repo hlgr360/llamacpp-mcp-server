@@ -21,12 +21,24 @@ const MODEL_ARG_SCHEMA = {
     "Optional model override. If omitted, the model currently loaded by the llama.cpp server is auto-detected.",
 };
 
+function cosineSimilarity(a, b) {
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
 class LlamaCppServer {
   constructor() {
     this.server = new Server(
       {
         name: "llamacpp-mcp-server",
-        version: "2.0.1",
+        version: "2.1.0",
       },
       {
         capabilities: {
@@ -280,6 +292,45 @@ class LlamaCppServer {
             properties: {},
           },
         },
+        {
+          name: "llamacpp_tokenize",
+          description: "Count how many tokens a piece of text would consume according to the local llama.cpp server's currently loaded tokenizer. Useful for checking context-window fit before sending large content.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              text: {
+                type: "string",
+                description: "The text to tokenize",
+              },
+              include_tokens: {
+                type: "boolean",
+                description: "If true, also return the raw token ID array (omitted by default to keep output small)",
+                default: false,
+              },
+            },
+            required: ["text"],
+          },
+        },
+        {
+          name: "llamacpp_semantic_similarity",
+          description: "Rank a list of candidate texts by semantic similarity to a query, using the local llama.cpp server's embedding model. Returns similarity scores only, never raw embedding vectors, to keep output small.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "The text to compare candidates against",
+              },
+              candidates: {
+                type: "array",
+                items: { type: "string" },
+                description: "Texts to rank by similarity to the query",
+              },
+              model: MODEL_ARG_SCHEMA,
+            },
+            required: ["query", "candidates"],
+          },
+        },
       ],
     }));
 
@@ -314,6 +365,10 @@ class LlamaCppServer {
             return await this.serverInfo();
           case "llamacpp_session_stats":
             return this.sessionStats();
+          case "llamacpp_tokenize":
+            return await this.tokenize(args);
+          case "llamacpp_semantic_similarity":
+            return await this.semanticSimilarity(args);
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -420,6 +475,56 @@ class LlamaCppServer {
 
   sessionStats() {
     return { content: [{ type: "text", text: JSON.stringify(this.tokenStats, null, 2) }] };
+  }
+
+  async tokenize(args) {
+    const { text, include_tokens } = args;
+    try {
+      const response = await axios.post(
+        `${LLAMACPP_BASE_URL}/tokenize`,
+        { content: text },
+        { timeout: 10000 }
+      );
+      const tokens = response.data?.tokens ?? [];
+      const info = { token_count: tokens.length };
+      if (include_tokens) info.tokens = tokens;
+      return { content: [{ type: "text", text: JSON.stringify(info, null, 2) }] };
+    } catch (error) {
+      if (error.code === "ECONNREFUSED") {
+        throw new Error(this.connectionErrorMessage(), { cause: error });
+      }
+      throw new Error(`Failed to tokenize text: ${error.message}`, { cause: error });
+    }
+  }
+
+  async semanticSimilarity(args) {
+    const { query, candidates, model: explicitModel } = args;
+    const resolved = await this.resolveModel(explicitModel);
+
+    try {
+      const response = await axios.post(
+        `${LLAMACPP_BASE_URL}/v1/embeddings`,
+        { model: resolved.id, input: [query, ...candidates] },
+        { timeout: 60000 }
+      );
+
+      const vectors = response.data?.data?.map((entry) => entry.embedding) ?? [];
+      const [queryVector, ...candidateVectors] = vectors;
+
+      const results = candidateVectors
+        .map((vector, index) => ({
+          candidate: index,
+          score: Math.round(cosineSimilarity(queryVector, vector) * 10000) / 10000,
+        }))
+        .sort((a, b) => b.score - a.score);
+
+      return { content: [{ type: "text", text: JSON.stringify({ results }, null, 2) }] };
+    } catch (error) {
+      if (error.code === "ECONNREFUSED") {
+        throw new Error(this.connectionErrorMessage(), { cause: error });
+      }
+      throw new Error(`Failed to compute semantic similarity: ${error.message}`, { cause: error });
+    }
   }
 
   async generateCode(args) {

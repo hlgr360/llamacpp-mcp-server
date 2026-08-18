@@ -72,14 +72,16 @@ after(async () => {
   await mock.close();
 });
 
-test("tools/list exposes all 13 llamacpp_* tools", async () => {
+test("tools/list exposes all 15 llamacpp_* tools", async () => {
   const id = send("tools/list", {});
   const response = await waitForResponse(id);
   const names = response.result.tools.map((t) => t.name);
-  assert.equal(names.length, 13);
+  assert.equal(names.length, 15);
   assert.ok(names.every((n) => n.startsWith("llamacpp_")));
   assert.ok(names.includes("llamacpp_server_info"));
   assert.ok(names.includes("llamacpp_session_stats"));
+  assert.ok(names.includes("llamacpp_tokenize"));
+  assert.ok(names.includes("llamacpp_semantic_similarity"));
 });
 
 test("tools/call routes llamacpp_generate_code through to the llama.cpp backend", async () => {

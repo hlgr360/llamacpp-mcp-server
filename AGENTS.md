@@ -6,7 +6,7 @@ repo. For user-facing docs see `README.md`; for manual validation see `TEST.md`.
 ## What this is
 
 A Node.js MCP server (`index.js`) that bridges a local `llama-server` (llama.cpp's
-OpenAI-compatible server) to MCP-speaking coding agents, exposing 13 `llamacpp_*` tools.
+OpenAI-compatible server) to MCP-speaking coding agents, exposing 15 `llamacpp_*` tools.
 `prompts.js` holds the system/user prompt templates, indexed by tool and by detected
 model family.
 

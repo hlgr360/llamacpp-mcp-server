@@ -173,3 +173,52 @@ describe("sessionStats", () => {
     assert.equal(stats.calls, 0);
   });
 });
+
+describe("tokenize", () => {
+  test("returns a token count without the raw token array by default", async () => {
+    const server = new LlamaCppServer();
+    const result = await server.tokenize({ text: "hello world" });
+    const info = JSON.parse(result.content[0].text);
+    assert.ok(info.token_count > 0);
+    assert.equal(info.tokens, undefined);
+  });
+
+  test("includes the raw token array when include_tokens is true", async () => {
+    const server = new LlamaCppServer();
+    const result = await server.tokenize({ text: "hello world", include_tokens: true });
+    const info = JSON.parse(result.content[0].text);
+    assert.ok(Array.isArray(info.tokens));
+    assert.equal(info.tokens.length, info.token_count);
+  });
+});
+
+describe("semanticSimilarity", () => {
+  test("ranks candidates by similarity to the query, without ever including raw vectors", async () => {
+    mock.state.embeddings = (inputs) => {
+      const vectors = { "find the auth code": [1, 0, 0], "login handler": [0.9, 0.1, 0], "fruit salad recipe": [0, 0, 1] };
+      return inputs.map((text) => vectors[text]);
+    };
+
+    const server = new LlamaCppServer();
+    const result = await server.semanticSimilarity({
+      query: "find the auth code",
+      candidates: ["login handler", "fruit salad recipe"],
+    });
+    const { results } = JSON.parse(result.content[0].text);
+
+    assert.equal(results.length, 2);
+    assert.equal(results[0].candidate, 0);
+    assert.ok(results[0].score > results[1].score);
+    assert.doesNotMatch(result.content[0].text, /0\.9,\s*0\.1,\s*0/);
+  });
+
+  test("resolves the model before requesting embeddings, same as other tools", async () => {
+    mock.state.embeddings = (inputs) => inputs.map(() => [1, 1, 1]);
+    const server = new LlamaCppServer();
+    await server.semanticSimilarity({ query: "a", candidates: ["b"], model: "explicit-embed-model" });
+
+    const embeddingRequest = mock.state.requests.find((r) => r.url === "/v1/embeddings");
+    assert.equal(embeddingRequest.body.model, "explicit-embed-model");
+    assert.deepEqual(embeddingRequest.body.input, ["a", "b"]);
+  });
+});
