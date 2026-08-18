@@ -86,6 +86,13 @@ this server reads (see "Prompt Templates" below for why that matters):
 llama-server -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_M -ngl 999 -fa on -c 65536 --port 8080 --reasoning-format deepseek
 ```
 
+`scripts/start-llama.sh` wraps a command like this in a background `tmux` session, with a
+small model-name → HuggingFace-repo lookup table you can edit for your own models:
+
+```bash
+./scripts/start-llama.sh qwen3.6   # edit the case block in the script to add your own
+```
+
 Verify it's up and see what it reports as loaded:
 
 ```bash
@@ -282,6 +289,8 @@ llamacpp_mcp/
 │   ├── server.test.js
 │   ├── server-unreachable.test.js
 │   └── integration.test.js
+├── scripts/
+│   └── start-llama.sh    # Optional convenience launcher for llama-server (tmux + HF model lookup)
 ├── package.json          # Node.js dependencies
 ├── README.md             # This file
 ├── AGENTS.md             # Priming notes for coding agents working in this repo
