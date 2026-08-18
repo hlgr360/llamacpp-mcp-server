@@ -31,6 +31,12 @@
   the `usage` field `llama-server` returns per request
 - **`scripts/start-llama.sh`**: optional convenience launcher for `llama-server` in a
   background `tmux` session, with a small model-name → HuggingFace-repo lookup table
+- **No-clone install via `npx`**: added a `bin` entry (`llamacpp-mcp-server` → `index.js`)
+  so `npx github:klopotek-rein/llamacpp_mcp` works directly against the public GitHub repo,
+  no local checkout or npm publish required
+- **ESLint**: flat config with `@eslint/js`'s recommended ruleset only (no style/formatting
+  rules), run via `npm run lint`. Fixed everything it flagged, including 7 re-thrown errors
+  that now pass `{ cause: error }` so the original stack isn't lost
 
 ### Notes
 - `--jinja` is enabled by default on recent `llama-server` builds (no longer needs passing

@@ -55,7 +55,11 @@ These tools read files directly on the MCP server, dramatically reducing convers
 
 ## Setup Instructions
 
-### 1. Install Dependencies
+You don't need to clone this repo to use it — see "Configure Your MCP Client" below for
+running it straight from GitHub via `npx`. Cloning is only needed if you want to develop
+on it (run the test suite, edit `prompts.js`, etc.).
+
+### 1. Install Dependencies (only if you cloned the repo)
 
 ```bash
 npm install
@@ -121,7 +125,25 @@ for Claude Code/Desktop as the reference example:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-Add the following to your config (or merge with existing `mcpServers`):
+**Option A — no clone, run straight from GitHub with `npx`:**
+
+```json
+{
+  "mcpServers": {
+    "llamacpp": {
+      "command": "npx",
+      "args": ["-y", "github:klopotek-rein/llamacpp_mcp"]
+    }
+  }
+}
+```
+
+This clones and installs on first run via anonymous HTTPS (the repo is public, so no
+GitHub account or SSH key is needed), then executes it — no local checkout to maintain.
+By default it tracks whatever is on `main`; pin to a specific release instead if you want
+stability, e.g. `github:klopotek-rein/llamacpp_mcp#v2.0.0` or a commit SHA.
+
+**Option B — clone locally** (needed if you're developing on the server itself):
 
 ```json
 {
@@ -137,9 +159,9 @@ Add the following to your config (or merge with existing `mcpServers`):
 **Note**: Update the path in `args` to match your actual installation location.
 
 For any other MCP client (Cursor, Codex CLI, Cline, Windsurf, a custom client, etc.),
-consult that client's docs for where its MCP config lives — the entry itself is the same
-`command: "node"` / `args: ["<path-to>/index.js"]` pair, since this server only relies on
-standard MCP-over-stdio and doesn't do anything Claude-specific.
+consult that client's docs for where its MCP config lives — the `mcpServers` entry itself
+is the same for either option above, since this server only relies on standard
+MCP-over-stdio and doesn't do anything Claude-specific.
 
 ### 4. Restart Your MCP Client
 

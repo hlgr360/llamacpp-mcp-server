@@ -75,3 +75,6 @@ Running against a **real** `llama-server` requires it to already be up (default
 - `LLAMACPP_BASE_URL` is read once at module import time as a top-level constant; it can't
   be changed per-instance at runtime. Tests that need a fresh backend URL do so in their
   own file/process (see `test/server-unreachable.test.js`).
+- `index.js`'s shebang line and its `bin` entry in `package.json` are load-bearing:
+  `npx github:klopotek-rein/llamacpp_mcp` (documented in README) resolves and executes
+  through that `bin` field, so don't remove either without checking that path still works.

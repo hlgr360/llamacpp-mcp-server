@@ -4,6 +4,9 @@
   "description": "MCP server bridging a local llama.cpp server to Claude Code and other coding agents",
   "type": "module",
   "main": "index.js",
+  "bin": {
+    "llamacpp-mcp-server": "index.js"
+  },
   "scripts": {
     "start": "node index.js",
     "test": "node --test",
