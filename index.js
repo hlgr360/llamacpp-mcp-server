@@ -8,6 +8,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 import fs from "fs/promises";
+import { realpathSync } from "fs";
 import path from "path";
 import { buildMessages, resolveFamily } from "./prompts.js";
 
@@ -581,7 +582,7 @@ class LlamaCppServer {
 
 export { LlamaCppServer };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === `file://${realpathSync(process.argv[1])}`) {
   const server = new LlamaCppServer();
   server.run();
 }
