@@ -41,10 +41,6 @@ class LlamaCppServer {
     this.setupToolHandlers();
 
     this.server.onerror = (error) => console.error("[MCP Error]", error);
-    process.on("SIGINT", async () => {
-      await this.server.close();
-      process.exit(0);
-    });
   }
 
   setupToolHandlers() {
@@ -575,6 +571,10 @@ class LlamaCppServer {
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
+    process.on("SIGINT", async () => {
+      await this.server.close();
+      process.exit(0);
+    });
     console.error(`llama.cpp MCP server running on stdio (target: ${LLAMACPP_BASE_URL})`);
   }
 }
