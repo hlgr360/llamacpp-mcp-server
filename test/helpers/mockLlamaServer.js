@@ -14,6 +14,7 @@ export function startMockLlamaServer() {
     },
     requests: [],
     chatResponse: (body) => `echo:${JSON.stringify(body.messages)}`,
+    usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
   };
 
   const server = http.createServer((req, res) => {
@@ -40,6 +41,7 @@ export function startMockLlamaServer() {
         res.end(
           JSON.stringify({
             choices: [{ message: { content: state.chatResponse(body) } }],
+            usage: state.usage,
           })
         );
         return;

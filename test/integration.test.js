@@ -72,13 +72,14 @@ after(async () => {
   await mock.close();
 });
 
-test("tools/list exposes all 12 llamacpp_* tools", async () => {
+test("tools/list exposes all 13 llamacpp_* tools", async () => {
   const id = send("tools/list", {});
   const response = await waitForResponse(id);
   const names = response.result.tools.map((t) => t.name);
-  assert.equal(names.length, 12);
+  assert.equal(names.length, 13);
   assert.ok(names.every((n) => n.startsWith("llamacpp_")));
   assert.ok(names.includes("llamacpp_server_info"));
+  assert.ok(names.includes("llamacpp_session_stats"));
 });
 
 test("tools/call routes llamacpp_generate_code through to the llama.cpp backend", async () => {
@@ -101,4 +102,15 @@ test("tools/call on llamacpp_server_info reports the mock model", async () => {
   const response = await waitForResponse(id);
   const info = JSON.parse(response.result.content[0].text);
   assert.equal(info.model_id, "mock-org/mock-model-7b");
+});
+
+test("tools/call on llamacpp_session_stats reflects the earlier generate_code call", async () => {
+  const id = send("tools/call", { name: "llamacpp_session_stats", arguments: {} });
+  const response = await waitForResponse(id);
+  const stats = JSON.parse(response.result.content[0].text);
+  assert.equal(stats.calls, 1);
+  assert.equal(stats.promptTokens, 10);
+  assert.equal(stats.completionTokens, 20);
+  assert.equal(stats.totalTokens, 30);
+  assert.deepEqual(stats.perTool.generate_code, { calls: 1, promptTokens: 10, completionTokens: 20, totalTokens: 30 });
 });

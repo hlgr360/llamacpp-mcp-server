@@ -26,6 +26,11 @@
   against a mocked `llama-server`, no real model or network needed. `index.js` now exports
   `LlamaCppServer` and only auto-starts when run directly, so it's importable by tests
 - **`AGENTS.md`**: priming notes for coding agents working in this repo
+- New `llamacpp_session_stats` tool: reports cumulative prompt/completion/total token usage
+  sent to/from `llama-server` so far in this session, with a per-tool breakdown, based on
+  the `usage` field `llama-server` returns per request
+- **`scripts/start-llama.sh`**: optional convenience launcher for `llama-server` in a
+  background `tmux` session, with a small model-name → HuggingFace-repo lookup table
 
 ### Notes
 - `--jinja` is enabled by default on recent `llama-server` builds (no longer needs passing

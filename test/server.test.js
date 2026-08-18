@@ -134,3 +134,42 @@ describe("serverInfo", () => {
     assert.equal(info.has_chat_template, true);
   });
 });
+
+describe("sessionStats", () => {
+  test("starts at zero before any calls", () => {
+    const server = new LlamaCppServer();
+    const stats = JSON.parse(server.sessionStats().content[0].text);
+    assert.deepEqual(stats, { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, perTool: {} });
+  });
+
+  test("accumulates usage across calls, with a per-tool breakdown", async () => {
+    mock.state.usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
+    const server = new LlamaCppServer();
+
+    await server.generateCode({ prompt: "x", language: "python" });
+    await server.generateCode({ prompt: "y", language: "python" });
+    mock.state.usage = { prompt_tokens: 5, completion_tokens: 7, total_tokens: 12 };
+    await server.explainCode({ code: "z" });
+
+    const stats = JSON.parse(server.sessionStats().content[0].text);
+    assert.equal(stats.calls, 3);
+    assert.equal(stats.promptTokens, 25);
+    assert.equal(stats.completionTokens, 47);
+    assert.equal(stats.totalTokens, 72);
+    assert.deepEqual(stats.perTool.generate_code, { calls: 2, promptTokens: 20, completionTokens: 40, totalTokens: 60 });
+    assert.deepEqual(stats.perTool.explain_code, { calls: 1, promptTokens: 5, completionTokens: 7, totalTokens: 12 });
+  });
+
+  test("tolerates a response with no usage field instead of crashing", async () => {
+    const server = new LlamaCppServer();
+    const originalUsage = mock.state.usage;
+    mock.state.usage = undefined;
+    try {
+      await server.generateCode({ prompt: "x", language: "python" });
+    } finally {
+      mock.state.usage = originalUsage;
+    }
+    const stats = JSON.parse(server.sessionStats().content[0].text);
+    assert.equal(stats.calls, 0);
+  });
+});

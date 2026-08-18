@@ -36,6 +36,7 @@ class LlamaCppServer {
 
     this.modelCache = null;
     this.modelCacheAt = 0;
+    this.tokenStats = { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, perTool: {} };
 
     this.setupToolHandlers();
 
@@ -274,6 +275,14 @@ class LlamaCppServer {
             properties: {},
           },
         },
+        {
+          name: "llamacpp_session_stats",
+          description: "Report cumulative token usage sent to/received from the local llama.cpp server so far in this session, with a per-tool breakdown. Use this to see how many tokens have been offloaded from the orchestrating agent's own context.",
+          inputSchema: {
+            type: "object",
+            properties: {},
+          },
+        },
       ],
     }));
 
@@ -306,6 +315,8 @@ class LlamaCppServer {
             return await this.generateCodeWithContext(args);
           case "llamacpp_server_info":
             return await this.serverInfo();
+          case "llamacpp_session_stats":
+            return this.sessionStats();
           default:
             throw new Error(`Unknown tool: ${name}`);
         }
@@ -376,6 +387,7 @@ class LlamaCppServer {
         }
       );
 
+      this.recordTokenUsage(toolName, response.data.usage);
       return response.data.choices[0].message.content;
     } catch (error) {
       if (error.code === "ECONNREFUSED") {
@@ -383,6 +395,34 @@ class LlamaCppServer {
       }
       throw new Error(`llama.cpp error: ${error.message}`);
     }
+  }
+
+  recordTokenUsage(toolName, usage) {
+    if (!usage) return;
+    const promptTokens = usage.prompt_tokens ?? 0;
+    const completionTokens = usage.completion_tokens ?? 0;
+    const totalTokens = usage.total_tokens ?? promptTokens + completionTokens;
+
+    this.tokenStats.calls += 1;
+    this.tokenStats.promptTokens += promptTokens;
+    this.tokenStats.completionTokens += completionTokens;
+    this.tokenStats.totalTokens += totalTokens;
+
+    const perTool = this.tokenStats.perTool[toolName] ?? {
+      calls: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+    };
+    perTool.calls += 1;
+    perTool.promptTokens += promptTokens;
+    perTool.completionTokens += completionTokens;
+    perTool.totalTokens += totalTokens;
+    this.tokenStats.perTool[toolName] = perTool;
+  }
+
+  sessionStats() {
+    return { content: [{ type: "text", text: JSON.stringify(this.tokenStats, null, 2) }] };
   }
 
   async generateCode(args) {

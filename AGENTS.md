@@ -6,7 +6,7 @@ repo. For user-facing docs see `README.md`; for manual validation see `TEST.md`.
 ## What this is
 
 A Node.js MCP server (`index.js`) that bridges a local `llama-server` (llama.cpp's
-OpenAI-compatible server) to MCP-speaking coding agents, exposing 12 `llamacpp_*` tools.
+OpenAI-compatible server) to MCP-speaking coding agents, exposing 13 `llamacpp_*` tools.
 `prompts.js` holds the system/user prompt templates, indexed by tool and by detected
 model family.
 
@@ -34,6 +34,9 @@ Running against a **real** `llama-server` requires it to already be up (default
   agent from having to paste file contents into its own context.
   Exports `LlamaCppServer` and only auto-starts (`server.run()`) when run directly (guarded
   by `import.meta.url`), so tests can import the class without booting a stdio server.
+  `callLlamaCpp` also records each response's `usage` field on `this.tokenStats`
+  (`recordTokenUsage`), which `llamacpp_session_stats` reports back — an in-memory,
+  per-process counter, so it naturally scopes to one client session and resets on restart.
 - `prompts.js` — `DEFAULT_PROMPTS[toolName]` gives `{system, user(args)}`; sparse
   `FAMILY_OVERRIDES[family][toolName]` overrides either half for models that need
   different framing. `resolveFamily(modelId)` does simple substring matching (gemma, qwen,

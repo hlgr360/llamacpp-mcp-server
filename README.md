@@ -48,6 +48,10 @@ These tools read files directly on the MCP server, dramatically reducing convers
 12. **llamacpp_server_info** - Reports which model `llama-server` currently has loaded, its
     context size, slot count, and whether it has a chat template — useful for any agent to
     check what's actually running before assuming a model or capability.
+13. **llamacpp_session_stats** - Reports cumulative prompt/completion/total token usage sent
+    to and received from `llama-server` so far in this session, with a per-tool breakdown —
+    based on the `usage` field `llama-server` returns per request. Answers "how many tokens
+    have actually been offloaded to the local model instead of my own context?"
 
 ## Setup Instructions
 
@@ -151,6 +155,7 @@ Ask the agent to use specific tools:
 - "Use llamacpp_generate_code to create a function that..."
 - "Use llamacpp_review_code to check this code for issues"
 - "Use llamacpp_server_info to check what model is loaded"
+- "Use llamacpp_session_stats to see how many tokens have been offloaded to llama.cpp so far"
 
 ### Automatic Orchestration
 Simply ask the agent to do tasks, and it will decide when to delegate to llama.cpp:
