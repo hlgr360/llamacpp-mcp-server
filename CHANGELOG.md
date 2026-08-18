@@ -35,7 +35,7 @@
   rules), run via `npm run lint`. Fixed everything it flagged, including 7 re-thrown errors
   that now pass `{ cause: error }` so the original stack isn't lost
 - Added a `bin` entry (`llamacpp-mcp-server` → `index.js`) in preparation for publishing to
-  npm. `npx github:hlgr360/llamacpp_mcp` was tried as a no-clone, no-publish alternative but
+  npm. `npx github:hlgr360/llamacpp-mcp-server` was tried as a no-clone, no-publish alternative but
   doesn't work: npm's git-dependency install path closes piped stdin immediately, breaking
   any stdio-based MCP server. A real npm registry publish is still the plan.
 - Repo transferred from `klopotek-rein` to `hlgr360` on GitHub, ahead of publishing to npm

@@ -9,11 +9,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hlgr360/llamacpp_mcp.git"
+    "url": "git+https://github.com/hlgr360/llamacpp-mcp-server.git"
   },
-  "homepage": "https://github.com/hlgr360/llamacpp_mcp",
+  "homepage": "https://github.com/hlgr360/llamacpp-mcp-server",
   "bugs": {
-    "url": "https://github.com/hlgr360/llamacpp_mcp/issues"
+    "url": "https://github.com/hlgr360/llamacpp-mcp-server/issues"
   },
   "scripts": {
     "start": "node index.js",

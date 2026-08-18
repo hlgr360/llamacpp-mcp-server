@@ -129,7 +129,7 @@ for Claude Code/Desktop as the reference example:
   "mcpServers": {
     "llamacpp": {
       "command": "node",
-      "args": ["/Users/holger/repos/github/llamacpp_mcp/index.js"]
+      "args": ["/Users/holger/repos/github/llamacpp-mcp-server/index.js"]
     }
   }
 }
@@ -142,7 +142,7 @@ consult that client's docs for where its MCP config lives — the `mcpServers` e
 is the same, since this server only relies on standard MCP-over-stdio and doesn't do
 anything Claude-specific.
 
-**A note on `npx` without cloning:** `npx -y github:hlgr360/llamacpp_mcp` looks like it
+**A note on `npx` without cloning:** `npx -y github:hlgr360/llamacpp-mcp-server` looks like it
 should work the same way — it does install and resolve the `bin` entry correctly — but it
 does **not** work as an MCP server: `npm exec`'s git-dependency install path routes through
 `@npmcli/run-script`, which closes piped stdin immediately, before any real handshake can
@@ -297,7 +297,7 @@ Response time depends on:
 ## Project Structure
 
 ```
-llamacpp_mcp/
+llamacpp-mcp-server/
 ├── index.js              # Main MCP server implementation
 ├── prompts.js            # Prompt registry, indexed by model family
 ├── test/                 # Automated test suite (npm test) — mocked llama-server backend

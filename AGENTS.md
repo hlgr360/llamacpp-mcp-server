@@ -77,7 +77,7 @@ Running against a **real** `llama-server` requires it to already be up (default
   own file/process (see `test/server-unreachable.test.js`).
 - `index.js`'s shebang line and its `bin` entry in `package.json` exist for a future
   published npm package (`npx llamacpp-mcp-server`), not yet published. Don't remove
-  either. Note: `npx github:hlgr360/llamacpp_mcp` (git-spec install) looks like it should
+  either. Note: `npx github:hlgr360/llamacpp-mcp-server` (git-spec install) looks like it should
   work but doesn't — `npm exec`'s git-dependency path closes piped stdin immediately via
   `@npmcli/run-script`, before any MCP handshake can happen. See README's "A note on npx
   without cloning" for details; only a real registry publish avoids that code path.

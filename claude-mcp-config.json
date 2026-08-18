@@ -2,7 +2,7 @@
   "mcpServers": {
     "llamacpp": {
       "command": "node",
-      "args": ["/Users/holger/repos/github/llamacpp_mcp/index.js"]
+      "args": ["/Users/holger/repos/github/llamacpp-mcp-server/index.js"]
     }
   }
 }

@@ -64,7 +64,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 ```javascript
 // Usage example:
 {
-  file_path: "/Users/holger/repos/github/llamacpp_mcp/index.js",
+  file_path: "/Users/holger/repos/github/llamacpp-mcp-server/index.js",
   focus: "error handling"
 }
 ```
@@ -80,7 +80,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 ```javascript
 // Usage example:
 {
-  file_path: "/Users/holger/repos/github/llamacpp_mcp/package.json",
+  file_path: "/Users/holger/repos/github/llamacpp-mcp-server/package.json",
   context: "Focus on dependencies and their purposes"
 }
 ```
@@ -96,8 +96,8 @@ These tools read files directly on the MCP server, reducing conversation token u
 // Usage example:
 {
   file_paths: [
-    "/Users/holger/repos/github/llamacpp_mcp/index.js",
-    "/Users/holger/repos/github/llamacpp_mcp/package.json"
+    "/Users/holger/repos/github/llamacpp-mcp-server/index.js",
+    "/Users/holger/repos/github/llamacpp-mcp-server/package.json"
   ],
   task: "Analyze how the dependencies in package.json are used in index.js"
 }
@@ -116,7 +116,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 {
   prompt: "Create a new tool handler method following the same pattern",
   language: "javascript",
-  context_files: ["/Users/holger/repos/github/llamacpp_mcp/index.js"]
+  context_files: ["/Users/holger/repos/github/llamacpp-mcp-server/index.js"]
 }
 ```
 
