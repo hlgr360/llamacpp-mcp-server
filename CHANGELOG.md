@@ -1,5 +1,26 @@
 # Changelog
 
+## Version 3.1.4 - Qwen3 prompt overrides for plain-text output, plus test coverage
+
+### Features
+- **Qwen family system-prompt overrides for `explain_code`, `review_code`, `review_file`,
+  `explain_file`, `analyze_files`, and `general_task`**: verified empirically against a
+  running Qwen3.6-35B-A3B server, the default prompts led this model to reliably pad
+  free-form explanatory/analysis output with emoji section headers, horizontal rules, and
+  markdown tables, and in `review_code` it appended a full unrequested rewrite of the input
+  on top of the four requested feedback categories. Each override now explicitly instructs
+  plain-text/prose output and, for `review_code`, that findings shouldn't be followed by a
+  full rewrite unless asked for. Tools with an already-fixed output format (`fix_code`,
+  `refactor_code`, `generate_code`, `write_tests`) didn't show this behavior and are left on
+  the default prompts.
+
+### Tests
+- Added coverage for `FAMILY_OVERRIDES.qwen` in `test/prompts.test.js`: each overridden tool
+  is checked for using its qwen-specific system prompt (not the default), for leaving the
+  user-message builder untouched, and (for the six new overrides) for banning emoji in the
+  system prompt. Previously the suite only checked that qwen falls back to defaults for a
+  tool with no override, never that the actual override entries take effect.
+
 ## Version 3.1.3 - Line-numbered file content for real file:line citations
 
 ### Features

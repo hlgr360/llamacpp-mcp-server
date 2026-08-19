@@ -1,6 +1,6 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { resolveFamily, buildMessages, DEFAULT_PROMPTS } from "../prompts.js";
+import { resolveFamily, buildMessages, DEFAULT_PROMPTS, FAMILY_OVERRIDES } from "../prompts.js";
 
 describe("resolveFamily", () => {
   const cases = [
@@ -64,4 +64,53 @@ describe("buildMessages", () => {
     assert.match(messages[1].content, /\/tmp\/a\.js/);
     assert.match(messages[1].content, /bugs/);
   });
+});
+
+// The qwen family overrides were added after a running Qwen3.6-35B-A3B server was
+// observed padding free-form output with emoji, headers, and unrequested rewrites on the
+// default prompts (see the comment above FAMILY_OVERRIDES.qwen in prompts.js). These tests
+// pin the override wiring itself -- not the model's actual behavior, which can only be
+// checked against a live server.
+describe("FAMILY_OVERRIDES.qwen", () => {
+  const argsByTool = {
+    write_tests: { code: "function add(a, b) { return a + b; }", framework: "node:test" },
+    explain_code: { code: "const x = 1;" },
+    review_code: { code: "const x = 1;", focus: "bugs" },
+    review_file: { code: "1\tconst x = 1;", focus: "bugs", fileName: "a.js", filePath: "/tmp/a.js" },
+    explain_file: { code: "1\tconst x = 1;", fileName: "a.js", filePath: "/tmp/a.js" },
+    analyze_files: { task: "find dependencies", filesContent: "FILE: a.js\n1\tconst x = 1;" },
+    general_task: { task: "summarize this" },
+  };
+
+  for (const tool of Object.keys(FAMILY_OVERRIDES.qwen)) {
+    test(`${tool} uses the qwen-specific system prompt`, () => {
+      const args = argsByTool[tool];
+      assert.ok(args, `no test args defined for qwen-overridden tool: ${tool}`);
+      const messages = buildMessages(tool, args, "qwen");
+      assert.equal(messages[0].content, FAMILY_OVERRIDES.qwen[tool].system);
+      assert.notEqual(messages[0].content, DEFAULT_PROMPTS[tool].system);
+    });
+
+    test(`${tool} still builds the user message with the default (non-overridden) user function`, () => {
+      const args = argsByTool[tool];
+      const messages = buildMessages(tool, args, "qwen");
+      assert.equal(messages[1].content, DEFAULT_PROMPTS[tool].user(args));
+    });
+  }
+
+  test("fix_code (a deepseek-only override) falls back to the default system prompt for qwen", () => {
+    const messages = buildMessages("fix_code", { code: "x", error: "boom" }, "qwen");
+    assert.equal(messages[0].content, DEFAULT_PROMPTS.fix_code.system);
+  });
+
+  // These six were added to stop the model padding free-form output with emoji, headers,
+  // tables, and horizontal rules; write_tests predates that fix and is exempt (its output
+  // format is already fully constrained), so it's excluded here.
+  const decorationBannedTools = Object.keys(FAMILY_OVERRIDES.qwen).filter((tool) => tool !== "write_tests");
+
+  for (const tool of decorationBannedTools) {
+    test(`${tool} qwen system prompt bans emoji`, () => {
+      assert.match(FAMILY_OVERRIDES.qwen[tool].system, /no emoji/i);
+    });
+  }
 });
