@@ -50,6 +50,8 @@ function waitForResponse(id, timeoutMs = 5000) {
   });
 }
 
+let initializeResponse;
+
 before(async () => {
   mock = await startMockLlamaServer();
   proc = spawn("node", [INDEX_PATH], {
@@ -63,13 +65,20 @@ before(async () => {
     capabilities: {},
     clientInfo: { name: "test", version: "0.0.1" },
   });
-  await waitForResponse(1);
+  initializeResponse = await waitForResponse(1);
   proc.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
 });
 
 after(async () => {
   proc.kill();
   await mock.close();
+});
+
+test("initialize response includes server instructions steering the calling agent toward the file-aware tools", () => {
+  const { instructions } = initializeResponse.result;
+  assert.equal(typeof instructions, "string");
+  assert.match(instructions, /local_llm_review_file/);
+  assert.match(instructions, /no internet access/);
 });
 
 test("tools/list exposes all 15 local_llm_* tools", async () => {

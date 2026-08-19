@@ -1,5 +1,21 @@
 # Changelog
 
+## Version 3.1.0 - Server instructions steering the orchestrating agent toward offload
+
+### Features
+- The MCP `initialize` response now includes a top-level `instructions` string (the same
+  mechanism tools like CodeGraph use to steer a calling agent before it acts) telling the
+  orchestrating agent to prefer the file-aware tools over reading a file itself, that
+  `local_llm_analyze_files` is also good for cross-file consistency checks, and that this
+  server has no internet access and can confabulate — verify its output before trusting it.
+- Tightened several tool descriptions in the same direction: `review_file`/`explain_file`/
+  `generate_code_with_context` now explicitly say to prefer them over reading the file
+  yourself; the corresponding string-based tools (`generate_code`, `explain_code`,
+  `review_code`) now point back at their file-aware sibling when a file path is available;
+  `analyze_files` calls out consistency-checking, not just dependency analysis; and
+  `general_task` now warns against using it for questions needing current external
+  knowledge, which the model will confabulate rather than refuse.
+
 ## Version 3.0.0 - Provider-agnostic core, renamed to local-llm-mcp
 
 ### Breaking Changes

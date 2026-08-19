@@ -1,6 +1,6 @@
 {
   "name": "local-llm-mcp",
-  "version": "3.0.0",
+  "version": "3.1.0",
   "description": "MCP server bridging a local, OpenAI-compatible LLM server (llama.cpp, vLLM, LM Studio, etc.) to Claude Code and other coding agents",
   "type": "module",
   "license": "AGPL-3.0-only",

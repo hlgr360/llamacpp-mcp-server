@@ -28,6 +28,12 @@ const MAX_GLOB_MATCHES = 50;
 const CODEGRAPH_CONTEXT_CHAR_LIMIT = 4000;
 const CODEGRAPH_TIMEOUT_MS = 5000;
 
+const SERVER_INSTRUCTIONS = `Offloads code-shaped work (generation, review, refactoring, explanation, test-writing) to a local LLM, saving your own context budget.
+
+For anything already on disk, prefer the file-aware tools (local_llm_review_file, local_llm_explain_file, local_llm_analyze_files, local_llm_generate_code_with_context) over reading the file yourself and pasting it into the string-based tools -- the file-aware tools read server-side, at roughly 50 tokens of your context versus thousands for a full read. local_llm_analyze_files also works well for cross-file consistency checks (e.g. "do these docs agree with each other"), not just dependency/relationship analysis.
+
+This server has no internet access and no knowledge of anything outside the files you point it at. Don't use it for questions needing current external knowledge (library APIs, changelogs, GitHub issues, current docs) -- it will confabulate specifics rather than refuse. Verify its output before trusting it, the same way you would a fast but occasionally-wrong reviewer.`;
+
 const MODEL_ARG_SCHEMA = {
   type: "string",
   description:
@@ -101,12 +107,13 @@ class LocalLlmServer {
     this.server = new Server(
       {
         name: "local-llm-mcp",
-        version: "3.0.0",
+        version: "3.1.0",
       },
       {
         capabilities: {
           tools: {},
         },
+        instructions: SERVER_INSTRUCTIONS,
       }
     );
 
@@ -124,7 +131,7 @@ class LocalLlmServer {
       tools: [
         {
           name: "local_llm_generate_code",
-          description: "Generate code using your local LLM server. Use this for writing new functions, classes, or code snippets. Provide detailed requirements and context.",
+          description: "Generate code using your local LLM server. Use this for writing new functions, classes, or code snippets. Provide detailed requirements and context. If you have reference files to base the generated code on, use local_llm_generate_code_with_context instead so they're read server-side.",
           inputSchema: {
             type: "object",
             properties: {
@@ -143,7 +150,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_explain_code",
-          description: "Explain how code works using your local LLM server. Use this to understand complex code sections, algorithms, or patterns.",
+          description: "Explain how code works using your local LLM server. Use this to understand complex code sections, algorithms, or patterns already in the conversation. If the code is in a file instead, use local_llm_explain_file so it's read server-side.",
           inputSchema: {
             type: "object",
             properties: {
@@ -162,7 +169,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_review_code",
-          description: "Review code for issues, bugs, or improvements using your local LLM server. Use this for code quality checks and suggestions.",
+          description: "Review code for issues, bugs, or improvements using your local LLM server. Use this for code already in the conversation. If the code is in a file instead, use local_llm_review_file so it's read server-side.",
           inputSchema: {
             type: "object",
             properties: {
@@ -239,7 +246,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_general_task",
-          description: "Execute any general coding task using your local LLM server. Use this for tasks that don't fit other categories.",
+          description: "Execute any general coding task grounded in code/text you provide, using your local LLM server. Use this for tasks that don't fit other categories. This server has no internet access -- don't use it for questions needing current external knowledge (library APIs, docs, GitHub issues), since it will confabulate rather than refuse.",
           inputSchema: {
             type: "object",
             properties: {
@@ -258,7 +265,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_review_file",
-          description: "Review a file by path using your local LLM server. The MCP server reads the file directly, reducing token usage.",
+          description: "Review a file by path using your local LLM server. Prefer this over reading the file yourself and passing it to local_llm_review_code -- the MCP server reads the file directly, at a fraction of the token cost of a full read.",
           inputSchema: {
             type: "object",
             properties: {
@@ -278,7 +285,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_explain_file",
-          description: "Explain a file by path using your local LLM server. The MCP server reads the file directly, reducing token usage.",
+          description: "Explain a file by path using your local LLM server. Prefer this over reading the file yourself and passing it to local_llm_explain_code -- the MCP server reads the file directly, at a fraction of the token cost of a full read.",
           inputSchema: {
             type: "object",
             properties: {
@@ -297,7 +304,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_analyze_files",
-          description: "Analyze multiple files together using your local LLM server. Useful for understanding relationships between files.",
+          description: "Analyze multiple files together using your local LLM server, reading them server-side instead of you reading each one. Useful for understanding relationships/dependencies between files, or for cross-file consistency checks (e.g. do these docs agree with each other, does this doc match the current code) -- prefer this over reading each file yourself first.",
           inputSchema: {
             type: "object",
             properties: {
@@ -317,7 +324,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_generate_code_with_context",
-          description: "Generate code using your local LLM server with context from existing files. Reads reference files to understand patterns.",
+          description: "Generate code using your local LLM server with context from existing files. Reads reference files server-side to understand patterns -- prefer this over reading the reference files yourself and pasting them into local_llm_generate_code.",
           inputSchema: {
             type: "object",
             properties: {
