@@ -1,5 +1,6 @@
 {
   "name": "local-llm-mcp-marketplace",
+  "description": "Offload code-shaped work to a local LLM server (llama.cpp, vLLM, LM Studio) via MCP, with an optional Read-gate hook for Claude Code.",
   "owner": {
     "name": "Holger Reinhardt",
     "url": "https://github.com/hlgr360"
