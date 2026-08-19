@@ -264,6 +264,39 @@ response (see `callLlamaCpp` in `index.js`) — with `--reasoning-format deepsee
 `message.reasoning_content` field and leaves `content` as just the final answer. Without
 it, raw thinking text leaks into every tool's returned output.
 
+### Latency Controls (reasoning models)
+
+A reasoning model with no output limit can spend an *unbounded* number of hidden
+`<think>` tokens before ever producing a visible answer — at 50 t/s, a call that "feels"
+slow despite fast raw throughput is very likely this, not a slow model or a slow network.
+Confirmed on this project's own dev machine: a `review_code` call generated 3971 tokens
+(most of it invisible reasoning) and took 89 seconds at a perfectly normal 44.6 t/s.
+
+Two controls address this:
+
+- **`LLAMACPP_MAX_TOKENS`** (default `16384`): every request now includes a `max_tokens`
+  ceiling, bounding worst-case latency regardless of model or task. If a response is cut
+  off by this limit, the tool's returned text gets an appended
+  `[WARNING: response was truncated...]` note rather than silently returning a cut-off
+  answer — check `llama-server`'s `finish_reason: "length"` semantics if you see this often
+  and consider raising the limit for that workload.
+- **`TOOL_REASONING_OVERRIDES`** in `prompts.js` (empty/no-op by default): set
+  `{ tool_name: false }` to send `chat_template_kwargs: { enable_thinking: false }` for that
+  tool, skipping reasoning entirely. In testing, this took a trivial `generate_code` call
+  from **28 seconds down to 541ms** — roughly 50x faster for a task that didn't need
+  reasoning to get right. This is a Qwen3-family chat-template convention, not a standard
+  OpenAI field — `llama-server` silently ignores it for model families that don't recognize
+  it, so it's harmless to leave configured even if you switch models. Reasoning generally
+  *helps* on hard tasks (debugging, tricky refactors), so this is opt-in per tool, not a
+  global default — you decide the speed/quality tradeoff per tool, e.g.:
+
+```js
+export const TOOL_REASONING_OVERRIDES = {
+  generate_code: false,  // usually mechanical, skip thinking
+  fix_code: true,        // debugging benefits from it
+};
+```
+
 ### CodeGraph Context Enrichment (optional)
 
 If the project being reviewed has a CodeGraph index (`.codegraph/` directory present, from

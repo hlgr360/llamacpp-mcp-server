@@ -4,7 +4,7 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { startMockLlamaServer } from "./helpers/mockLlamaServer.js";
-import { TOOL_MODEL_PREFERENCES } from "../prompts.js";
+import { TOOL_MODEL_PREFERENCES, TOOL_REASONING_OVERRIDES } from "../prompts.js";
 
 let mock;
 let LlamaCppServer;
@@ -33,6 +33,7 @@ beforeEach(() => {
   mock.state.requests.length = 0;
   mock.state.modelId = "mock-org/mock-model-7b";
   mock.state.modelIds = null;
+  mock.state.finishReason = "stop";
 });
 
 describe("resolveModel", () => {
@@ -120,6 +121,47 @@ describe("callLlamaCpp / tool methods", () => {
     assert.ok(chatRequest, "expected a request to /v1/chat/completions");
     assert.equal(chatRequest.body.messages[0].role, "system");
     assert.equal(chatRequest.body.messages[1].role, "user");
+  });
+
+  test("every request includes a max_tokens ceiling", async () => {
+    const server = new LlamaCppServer();
+    await server.generateCode({ prompt: "x", language: "python" });
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    assert.ok(Number.isInteger(chatRequest.body.max_tokens));
+    assert.ok(chatRequest.body.max_tokens > 0);
+  });
+
+  test("appends a truncation warning when the model hits the max_tokens limit", async () => {
+    mock.state.finishReason = "length";
+    const server = new LlamaCppServer();
+    const result = await server.generateCode({ prompt: "x", language: "python" });
+    assert.match(result.content[0].text, /WARNING.*truncated/i);
+  });
+
+  test("does not append a truncation warning on a normal completion", async () => {
+    mock.state.finishReason = "stop";
+    const server = new LlamaCppServer();
+    const result = await server.generateCode({ prompt: "x", language: "python" });
+    assert.doesNotMatch(result.content[0].text, /WARNING/);
+  });
+
+  test("does not send chat_template_kwargs when no reasoning override is configured", async () => {
+    const server = new LlamaCppServer();
+    await server.generateCode({ prompt: "x", language: "python" });
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    assert.equal(chatRequest.body.chat_template_kwargs, undefined);
+  });
+
+  test("sends chat_template_kwargs.enable_thinking when a reasoning override is configured for the tool", async () => {
+    TOOL_REASONING_OVERRIDES.generate_code = false;
+    try {
+      const server = new LlamaCppServer();
+      await server.generateCode({ prompt: "x", language: "python" });
+      const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+      assert.deepEqual(chatRequest.body.chat_template_kwargs, { enable_thinking: false });
+    } finally {
+      delete TOOL_REASONING_OVERRIDES.generate_code;
+    }
   });
 
   test("reviewFile reads the file server-side and includes its content and path in the prompt", async () => {

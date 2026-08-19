@@ -138,6 +138,16 @@ export const FAMILY_OVERRIDES = {
 // Populate your own, e.g. { write_tests: ["qwen"], fix_code: ["deepseek"] }.
 export const TOOL_MODEL_PREFERENCES = {};
 
+// Sparse per-tool override for reasoning models: true/false sends
+// chat_template_kwargs: { enable_thinking }, letting you trade thinking-model quality for
+// speed per tool. Empty by default -- omitted entirely means "whatever the model/template
+// does by default," unchanged from before this existed. Not a standard OpenAI field; it's
+// a Qwen3-family chat-template convention specifically, and llama-server silently ignores
+// it for templates that don't recognize it. Populate your own, e.g.
+// { generate_code: false, fix_code: true } to skip thinking on quick generation but keep
+// it for harder debugging.
+export const TOOL_REASONING_OVERRIDES = {};
+
 export function buildMessages(toolName, args, family) {
   const base = DEFAULT_PROMPTS[toolName];
   if (!base) {

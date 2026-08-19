@@ -1,5 +1,24 @@
 # Changelog
 
+## Version 2.5.0 - Latency controls for reasoning models
+
+### Features
+- Every request to `/v1/chat/completions` now includes a `max_tokens` ceiling (default
+  `16384`, override via `LLAMACPP_MAX_TOKENS`). Diagnosed on this project's own dev
+  machine: a reasoning model with no output limit can spend an unbounded number of hidden
+  `<think>` tokens before answering — one `review_code` call generated 3971 tokens (most
+  of it invisible reasoning) and took 89 seconds at a perfectly normal 44.6 t/s. There was
+  previously no cap anywhere on generation length.
+- If a response is cut short by that limit (`finish_reason: "length"`), the returned text
+  now gets an appended `[WARNING: response was truncated...]` note instead of silently
+  returning a cut-off answer.
+- New `TOOL_REASONING_OVERRIDES` sparse map in `prompts.js` (empty/no-op by default): set
+  `{ tool_name: false }` to send `chat_template_kwargs: { enable_thinking: false }` for
+  that tool, skipping reasoning entirely. Measured **28s → 541ms (~50x)** for a trivial
+  `generate_code` call. Not a standard OpenAI field — a Qwen3-family chat-template
+  convention that `llama-server` silently ignores for model families that don't recognize
+  it. Left opt-in per tool since reasoning genuinely helps on harder tasks.
+
 ## Version 2.4.0 - CodeGraph context enrichment
 
 ### Features

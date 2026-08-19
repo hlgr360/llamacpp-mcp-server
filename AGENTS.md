@@ -38,6 +38,15 @@ Running against a **real** `llama-server` requires it to already be up (default
   `callLlamaCpp` also records each response's `usage` field on `this.tokenStats`
   (`recordTokenUsage`), which `llamacpp_session_stats` reports back — an in-memory,
   per-process counter, so it naturally scopes to one client session and resets on restart.
+  Every request includes a `max_tokens: MAX_TOKENS` ceiling (default 16384, override via
+  `LLAMACPP_MAX_TOKENS`) — reasoning models have no natural output limit otherwise, and a
+  single call can spend an unbounded number of hidden `<think>` tokens before answering.
+  `finish_reason === "length"` appends a truncation warning rather than silently returning
+  a cut-off answer. `TOOL_REASONING_OVERRIDES[toolName]` (in `prompts.js`, empty by default)
+  optionally sets `chat_template_kwargs: { enable_thinking }` per tool — confirmed ~50x
+  faster (28s → 541ms) for a trivial `generate_code` call with thinking disabled. Not a
+  standard OpenAI field; it's Qwen3-specific and silently ignored by templates that don't
+  recognize it.
   `getCodeGraphContext(query, cwd)` is a best-effort helper the four file-aware tools call:
   if `cwd` (default `process.cwd()`) has a `.codegraph/` directory, it shells out to
   `codegraph explore <query>` (binary overridable via `CODEGRAPH_BIN`, mainly for tests) and

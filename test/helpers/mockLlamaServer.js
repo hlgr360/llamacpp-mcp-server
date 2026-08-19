@@ -18,6 +18,7 @@ export function startMockLlamaServer() {
     requests: [],
     chatResponse: (body) => `echo:${JSON.stringify(body.messages)}`,
     usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
+    finishReason: "stop",
     tokenize: (content) => Array.from({ length: Math.max(1, Math.ceil(content.length / 4)) }, (_, i) => i),
     // Default: a crude per-string vector (char-code based) so identical text
     // always embeds identically and different text embeds differently.
@@ -54,7 +55,7 @@ export function startMockLlamaServer() {
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
-            choices: [{ message: { content: state.chatResponse(body) } }],
+            choices: [{ message: { content: state.chatResponse(body) }, finish_reason: state.finishReason }],
             usage: state.usage,
           })
         );

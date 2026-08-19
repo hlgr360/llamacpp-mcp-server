@@ -12,11 +12,16 @@ import { realpathSync } from "fs";
 import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { buildMessages, resolveFamily, TOOL_MODEL_PREFERENCES } from "./prompts.js";
+import { buildMessages, resolveFamily, TOOL_MODEL_PREFERENCES, TOOL_REASONING_OVERRIDES } from "./prompts.js";
 
 const execFileAsync = promisify(execFile);
 
 const LLAMACPP_BASE_URL = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
+// Defensive ceiling on generated tokens per call. With a reasoning model and no cap, a
+// single tool call can spend an unbounded number of hidden <think> tokens before ever
+// producing a visible answer -- this bounds worst-case latency without being tight enough
+// to routinely truncate legitimate output. Override via LLAMACPP_MAX_TOKENS if needed.
+const MAX_TOKENS = Number(process.env.LLAMACPP_MAX_TOKENS) || 16384;
 const MODEL_CACHE_TTL_MS = 30_000;
 const GLOB_METACHARACTERS = /[*?[{]/;
 const MAX_GLOB_MATCHES = 50;
@@ -96,7 +101,7 @@ class LlamaCppServer {
     this.server = new Server(
       {
         name: "llamacpp-mcp-server",
-        version: "2.4.0",
+        version: "2.5.0",
       },
       {
         capabilities: {
@@ -502,21 +507,28 @@ class LlamaCppServer {
     const resolved = await this.resolveModel(explicitModel, toolName);
     const messages = buildMessages(toolName, promptArgs, resolved.family);
 
+    const body = {
+      model: resolved.id,
+      messages,
+      stream: false,
+      max_tokens: MAX_TOKENS,
+    };
+    const enableThinking = TOOL_REASONING_OVERRIDES[toolName];
+    if (enableThinking !== undefined) {
+      body.chat_template_kwargs = { enable_thinking: enableThinking };
+    }
+
     try {
-      const response = await axios.post(
-        `${LLAMACPP_BASE_URL}/v1/chat/completions`,
-        {
-          model: resolved.id,
-          messages,
-          stream: false,
-        },
-        {
-          timeout: 900000, // 15 minute timeout (overly long, to account for slow local models)
-        }
-      );
+      const response = await axios.post(`${LLAMACPP_BASE_URL}/v1/chat/completions`, body, {
+        timeout: 900000, // 15 minute timeout (overly long, to account for slow local models)
+      });
 
       this.recordTokenUsage(toolName, response.data.usage);
-      return response.data.choices[0].message.content;
+      const choice = response.data.choices[0];
+      if (choice.finish_reason === "length") {
+        return `${choice.message.content}\n\n[WARNING: response was truncated at the ${MAX_TOKENS}-token generation limit (LLAMACPP_MAX_TOKENS) before finishing. Consider a narrower request, or raise the limit.]`;
+      }
+      return choice.message.content;
     } catch (error) {
       if (error.code === "ECONNREFUSED") {
         throw new Error(this.connectionErrorMessage(), { cause: error });
