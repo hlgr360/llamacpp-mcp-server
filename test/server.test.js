@@ -7,15 +7,15 @@ import { startMockLlamaServer } from "./helpers/mockLlamaServer.js";
 import { TOOL_MODEL_PREFERENCES, TOOL_REASONING_OVERRIDES } from "../prompts.js";
 
 let mock;
-let LlamaCppServer;
+let LocalLlmServer;
 let tmpDir;
 let originalCwd;
 
 before(async () => {
   mock = await startMockLlamaServer();
-  process.env.LLAMACPP_BASE_URL = mock.url;
-  ({ LlamaCppServer } = await import("../index.js"));
-  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "llamacpp-mcp-test-"));
+  process.env.LOCAL_LLM_BASE_URL = mock.url;
+  ({ LocalLlmServer } = await import("../index.js"));
+  tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "local-llm-mcp-test-"));
   // getCodeGraphContext() defaults to process.cwd() -- chdir into a directory
   // guaranteed to have no .codegraph/, so these tests stay hermetic instead of
   // accidentally hitting this repo's own real CodeGraph index.
@@ -38,7 +38,7 @@ beforeEach(() => {
 
 describe("resolveModel", () => {
   test("an explicit model argument skips the network call entirely", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const resolved = await server.resolveModel("qwen-explicit");
     assert.equal(resolved.id, "qwen-explicit");
     assert.equal(resolved.family, "qwen");
@@ -47,14 +47,14 @@ describe("resolveModel", () => {
 
   test("auto-detects the loaded model from /v1/models and resolves its family", async () => {
     mock.state.modelId = "gemma-3-12b-it";
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const resolved = await server.resolveModel(undefined);
     assert.equal(resolved.id, "gemma-3-12b-it");
     assert.equal(resolved.family, "gemma");
   });
 
   test("caches the auto-detected model instead of re-querying every call", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.resolveModel(undefined);
     await server.resolveModel(undefined);
     const modelRequests = mock.state.requests.filter((r) => r.url === "/v1/models");
@@ -70,14 +70,14 @@ describe("resolveModel with multiple models (router/multi-model support)", () =>
 
   test("single-model behavior is unaffected when no preferences are configured", async () => {
     mock.state.modelIds = ["mock-org/mock-model-7b"];
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const resolved = await server.resolveModel(undefined, "generate_code");
     assert.equal(resolved.id, "mock-org/mock-model-7b");
   });
 
   test("with multiple models and no preference for the tool, falls back to the first one", async () => {
     mock.state.modelIds = ["deepseek-coder-v2", "qwen2.5-coder"];
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const resolved = await server.resolveModel(undefined, "generate_code");
     assert.equal(resolved.id, "deepseek-coder-v2");
   });
@@ -85,7 +85,7 @@ describe("resolveModel with multiple models (router/multi-model support)", () =>
   test("honors a configured preference, picking the first available matching family", async () => {
     mock.state.modelIds = ["deepseek-coder-v2", "qwen2.5-coder"];
     TOOL_MODEL_PREFERENCES.write_tests = ["qwen", "deepseek"];
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const resolved = await server.resolveModel(undefined, "write_tests");
     assert.equal(resolved.id, "qwen2.5-coder");
     assert.equal(resolved.family, "qwen");
@@ -94,14 +94,14 @@ describe("resolveModel with multiple models (router/multi-model support)", () =>
   test("falls back to the first model when none of the preferred families are available", async () => {
     mock.state.modelIds = ["llama-3-8b-instruct"];
     TOOL_MODEL_PREFERENCES.write_tests = ["qwen", "deepseek"];
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const resolved = await server.resolveModel(undefined, "write_tests");
     assert.equal(resolved.id, "llama-3-8b-instruct");
   });
 
   test("caches the shared model list once regardless of how many tools resolve against it", async () => {
     mock.state.modelIds = ["deepseek-coder-v2", "qwen2.5-coder"];
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.resolveModel(undefined, "generate_code");
     await server.resolveModel(undefined, "write_tests");
     const modelRequests = mock.state.requests.filter((r) => r.url === "/v1/models");
@@ -109,9 +109,9 @@ describe("resolveModel with multiple models (router/multi-model support)", () =>
   });
 });
 
-describe("callLlamaCpp / tool methods", () => {
+describe("callLocalLlm / tool methods", () => {
   test("generateCode sends the built messages and returns the model's content", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.generateCode({ prompt: "add two numbers", language: "javascript" });
     const text = result.content[0].text;
     assert.match(text, /add two numbers/);
@@ -124,7 +124,7 @@ describe("callLlamaCpp / tool methods", () => {
   });
 
   test("every request includes a max_tokens ceiling", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.generateCode({ prompt: "x", language: "python" });
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
     assert.ok(Number.isInteger(chatRequest.body.max_tokens));
@@ -133,20 +133,20 @@ describe("callLlamaCpp / tool methods", () => {
 
   test("appends a truncation warning when the model hits the max_tokens limit", async () => {
     mock.state.finishReason = "length";
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.generateCode({ prompt: "x", language: "python" });
     assert.match(result.content[0].text, /WARNING.*truncated/i);
   });
 
   test("does not append a truncation warning on a normal completion", async () => {
     mock.state.finishReason = "stop";
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.generateCode({ prompt: "x", language: "python" });
     assert.doesNotMatch(result.content[0].text, /WARNING/);
   });
 
   test("does not send chat_template_kwargs when no reasoning override is configured", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.generateCode({ prompt: "x", language: "python" });
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
     assert.equal(chatRequest.body.chat_template_kwargs, undefined);
@@ -155,7 +155,7 @@ describe("callLlamaCpp / tool methods", () => {
   test("sends chat_template_kwargs.enable_thinking when a reasoning override is configured for the tool", async () => {
     TOOL_REASONING_OVERRIDES.generate_code = false;
     try {
-      const server = new LlamaCppServer();
+      const server = new LocalLlmServer();
       await server.generateCode({ prompt: "x", language: "python" });
       const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
       assert.deepEqual(chatRequest.body.chat_template_kwargs, { enable_thinking: false });
@@ -168,7 +168,7 @@ describe("callLlamaCpp / tool methods", () => {
     const filePath = path.join(tmpDir, "sample.js");
     await fs.writeFile(filePath, "function add(a, b) { return a + b; }");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.reviewFile({ file_path: filePath, focus: "bugs" });
 
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
@@ -179,7 +179,7 @@ describe("callLlamaCpp / tool methods", () => {
   });
 
   test("reviewFile surfaces a clear error for a missing file", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await assert.rejects(
       () => server.reviewFile({ file_path: path.join(tmpDir, "does-not-exist.js"), focus: "bugs" }),
       /Failed to read file/
@@ -192,7 +192,7 @@ describe("callLlamaCpp / tool methods", () => {
     await fs.writeFile(fileA, "const a = 1;");
     await fs.writeFile(fileB, "const b = 2;");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.analyzeFiles({ file_paths: [fileA, fileB], task: "find shared patterns" });
 
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
@@ -209,7 +209,7 @@ describe("callLlamaCpp / tool methods", () => {
     await fs.writeFile(fileA, "const a = 1;");
     await fs.writeFile(fileB, "const b = 2;");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.analyzeFiles({ file_paths: [path.join(tmpDir, "glob-*.js")], task: "find shared patterns" });
 
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
@@ -222,7 +222,7 @@ describe("callLlamaCpp / tool methods", () => {
     const fileA = path.join(tmpDir, "ctx-glob-a.js");
     await fs.writeFile(fileA, "const a = 1;");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.generateCodeWithContext({
       prompt: "x",
       language: "javascript",
@@ -239,7 +239,7 @@ describe("callLlamaCpp / tool methods", () => {
       await fs.writeFile(path.join(tmpDir, `many-${i}.js`), "// x");
     }
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await assert.rejects(
       () => server.analyzeFiles({ file_paths: [path.join(tmpDir, "many-*.js")], task: "x" }),
       /exceeds the limit/
@@ -250,7 +250,7 @@ describe("callLlamaCpp / tool methods", () => {
     const filePath = path.join(tmpDir, "literal.js");
     await fs.writeFile(filePath, "const literal = true;");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.analyzeFiles({ file_paths: [filePath], task: "x" });
 
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
@@ -258,7 +258,7 @@ describe("callLlamaCpp / tool methods", () => {
   });
 
   test("an explicit model argument overrides auto-detection for the actual request", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.generateCode({ prompt: "x", language: "python", model: "deepseek-explicit" });
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
     assert.equal(chatRequest.body.model, "deepseek-explicit");
@@ -274,7 +274,7 @@ describe("serverInfo", () => {
       chat_template: "{{ x }}",
     };
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.serverInfo();
     const info = JSON.parse(result.content[0].text);
 
@@ -284,18 +284,35 @@ describe("serverInfo", () => {
     assert.equal(info.total_slots, 2);
     assert.equal(info.has_chat_template, true);
   });
+
+  test("degrades gracefully when /props isn't implemented (e.g. vLLM, LM Studio)", async () => {
+    mock.state.modelId = "some-org/some-model";
+    mock.state.propsAvailable = false;
+    try {
+      const server = new LocalLlmServer();
+      const result = await server.serverInfo();
+      const info = JSON.parse(result.content[0].text);
+
+      assert.equal(info.model_id, "some-org/some-model");
+      assert.equal(info.context_size, null);
+      assert.equal(info.total_slots, null);
+      assert.equal(info.has_chat_template, null);
+    } finally {
+      mock.state.propsAvailable = true;
+    }
+  });
 });
 
 describe("sessionStats", () => {
   test("starts at zero before any calls", () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const stats = JSON.parse(server.sessionStats().content[0].text);
     assert.deepEqual(stats, { calls: 0, promptTokens: 0, completionTokens: 0, totalTokens: 0, perTool: {} });
   });
 
   test("accumulates usage across calls, with a per-tool breakdown", async () => {
     mock.state.usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
 
     await server.generateCode({ prompt: "x", language: "python" });
     await server.generateCode({ prompt: "y", language: "python" });
@@ -312,7 +329,7 @@ describe("sessionStats", () => {
   });
 
   test("tolerates a response with no usage field instead of crashing", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const originalUsage = mock.state.usage;
     mock.state.usage = undefined;
     try {
@@ -327,7 +344,7 @@ describe("sessionStats", () => {
 
 describe("tokenize", () => {
   test("returns a token count without the raw token array by default", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.tokenize({ text: "hello world" });
     const info = JSON.parse(result.content[0].text);
     assert.ok(info.token_count > 0);
@@ -335,7 +352,7 @@ describe("tokenize", () => {
   });
 
   test("includes the raw token array when include_tokens is true", async () => {
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.tokenize({ text: "hello world", include_tokens: true });
     const info = JSON.parse(result.content[0].text);
     assert.ok(Array.isArray(info.tokens));
@@ -350,7 +367,7 @@ describe("semanticSimilarity", () => {
       return inputs.map((text) => vectors[text]);
     };
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.semanticSimilarity({
       query: "find the auth code",
       candidates: ["login handler", "fruit salad recipe"],
@@ -365,7 +382,7 @@ describe("semanticSimilarity", () => {
 
   test("resolves the model before requesting embeddings, same as other tools", async () => {
     mock.state.embeddings = (inputs) => inputs.map(() => [1, 1, 1]);
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.semanticSimilarity({ query: "a", candidates: ["b"], model: "explicit-embed-model" });
 
     const embeddingRequest = mock.state.requests.find((r) => r.url === "/v1/embeddings");
@@ -384,7 +401,7 @@ describe("CodeGraph context enrichment (via reviewFile)", () => {
     const filePath = path.join(tmpDir, "no-codegraph.js");
     await fs.writeFile(filePath, "const x = 1;");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.reviewFile({ file_path: filePath, focus: "bugs" });
 
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
@@ -401,7 +418,7 @@ describe("CodeGraph context enrichment (via reviewFile)", () => {
     const filePath = path.join(tmpDir, "with-codegraph.js");
     await fs.writeFile(filePath, "const x = 1;");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     await server.reviewFile({ file_path: filePath, focus: "bugs" });
 
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
@@ -415,7 +432,7 @@ describe("CodeGraph context enrichment (via reviewFile)", () => {
     const filePath = path.join(tmpDir, "missing-binary.js");
     await fs.writeFile(filePath, "const x = 1;");
 
-    const server = new LlamaCppServer();
+    const server = new LocalLlmServer();
     const result = await server.reviewFile({ file_path: filePath, focus: "bugs" });
     assert.ok(result.content[0].text);
 

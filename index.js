@@ -16,12 +16,12 @@ import { buildMessages, resolveFamily, TOOL_MODEL_PREFERENCES, TOOL_REASONING_OV
 
 const execFileAsync = promisify(execFile);
 
-const LLAMACPP_BASE_URL = process.env.LLAMACPP_BASE_URL || "http://localhost:8080";
+const LOCAL_LLM_BASE_URL = process.env.LOCAL_LLM_BASE_URL || "http://localhost:8080";
 // Defensive ceiling on generated tokens per call. With a reasoning model and no cap, a
 // single tool call can spend an unbounded number of hidden <think> tokens before ever
 // producing a visible answer -- this bounds worst-case latency without being tight enough
-// to routinely truncate legitimate output. Override via LLAMACPP_MAX_TOKENS if needed.
-const MAX_TOKENS = Number(process.env.LLAMACPP_MAX_TOKENS) || 16384;
+// to routinely truncate legitimate output. Override via LOCAL_LLM_MAX_TOKENS if needed.
+const MAX_TOKENS = Number(process.env.LOCAL_LLM_MAX_TOKENS) || 16384;
 const MODEL_CACHE_TTL_MS = 30_000;
 const GLOB_METACHARACTERS = /[*?[{]/;
 const MAX_GLOB_MATCHES = 50;
@@ -31,7 +31,7 @@ const CODEGRAPH_TIMEOUT_MS = 5000;
 const MODEL_ARG_SCHEMA = {
   type: "string",
   description:
-    "Optional model override. If omitted, the model currently loaded by the llama.cpp server is auto-detected.",
+    "Optional model override. If omitted, the model currently loaded by the local LLM server is auto-detected.",
 };
 
 function cosineSimilarity(a, b) {
@@ -96,12 +96,12 @@ async function getCodeGraphContext(query, cwd = process.cwd()) {
   }
 }
 
-class LlamaCppServer {
+class LocalLlmServer {
   constructor() {
     this.server = new Server(
       {
-        name: "llamacpp-mcp-server",
-        version: "2.5.0",
+        name: "local-llm-mcp",
+        version: "3.0.0",
       },
       {
         capabilities: {
@@ -123,8 +123,8 @@ class LlamaCppServer {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
         {
-          name: "llamacpp_generate_code",
-          description: "Generate code using your local llama.cpp server. Use this for writing new functions, classes, or code snippets. Provide detailed requirements and context.",
+          name: "local_llm_generate_code",
+          description: "Generate code using your local LLM server. Use this for writing new functions, classes, or code snippets. Provide detailed requirements and context.",
           inputSchema: {
             type: "object",
             properties: {
@@ -142,8 +142,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_explain_code",
-          description: "Explain how code works using your local llama.cpp server. Use this to understand complex code sections, algorithms, or patterns.",
+          name: "local_llm_explain_code",
+          description: "Explain how code works using your local LLM server. Use this to understand complex code sections, algorithms, or patterns.",
           inputSchema: {
             type: "object",
             properties: {
@@ -161,8 +161,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_review_code",
-          description: "Review code for issues, bugs, or improvements using your local llama.cpp server. Use this for code quality checks and suggestions.",
+          name: "local_llm_review_code",
+          description: "Review code for issues, bugs, or improvements using your local LLM server. Use this for code quality checks and suggestions.",
           inputSchema: {
             type: "object",
             properties: {
@@ -181,8 +181,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_refactor_code",
-          description: "Refactor code to improve quality, readability, or structure using your local llama.cpp server.",
+          name: "local_llm_refactor_code",
+          description: "Refactor code to improve quality, readability, or structure using your local LLM server.",
           inputSchema: {
             type: "object",
             properties: {
@@ -200,8 +200,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_fix_code",
-          description: "Fix bugs or errors in code using your local llama.cpp server. Provide the broken code and error details.",
+          name: "local_llm_fix_code",
+          description: "Fix bugs or errors in code using your local LLM server. Provide the broken code and error details.",
           inputSchema: {
             type: "object",
             properties: {
@@ -219,8 +219,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_write_tests",
-          description: "Generate unit tests for code using your local llama.cpp server.",
+          name: "local_llm_write_tests",
+          description: "Generate unit tests for code using your local LLM server.",
           inputSchema: {
             type: "object",
             properties: {
@@ -238,8 +238,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_general_task",
-          description: "Execute any general coding task using your local llama.cpp server. Use this for tasks that don't fit other categories.",
+          name: "local_llm_general_task",
+          description: "Execute any general coding task using your local LLM server. Use this for tasks that don't fit other categories.",
           inputSchema: {
             type: "object",
             properties: {
@@ -257,8 +257,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_review_file",
-          description: "Review a file by path using your local llama.cpp server. The MCP server reads the file directly, reducing token usage.",
+          name: "local_llm_review_file",
+          description: "Review a file by path using your local LLM server. The MCP server reads the file directly, reducing token usage.",
           inputSchema: {
             type: "object",
             properties: {
@@ -277,8 +277,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_explain_file",
-          description: "Explain a file by path using your local llama.cpp server. The MCP server reads the file directly, reducing token usage.",
+          name: "local_llm_explain_file",
+          description: "Explain a file by path using your local LLM server. The MCP server reads the file directly, reducing token usage.",
           inputSchema: {
             type: "object",
             properties: {
@@ -296,8 +296,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_analyze_files",
-          description: "Analyze multiple files together using your local llama.cpp server. Useful for understanding relationships between files.",
+          name: "local_llm_analyze_files",
+          description: "Analyze multiple files together using your local LLM server. Useful for understanding relationships between files.",
           inputSchema: {
             type: "object",
             properties: {
@@ -316,8 +316,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_generate_code_with_context",
-          description: "Generate code using your local llama.cpp server with context from existing files. Reads reference files to understand patterns.",
+          name: "local_llm_generate_code_with_context",
+          description: "Generate code using your local LLM server with context from existing files. Reads reference files to understand patterns.",
           inputSchema: {
             type: "object",
             properties: {
@@ -340,24 +340,24 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_server_info",
-          description: "Report which model the local llama.cpp server currently has loaded, its context size, and its capabilities. Use this to check what's actually running before assuming a model or capability.",
+          name: "local_llm_server_info",
+          description: "Report which model the local LLM server currently has loaded, its context size, and its capabilities. Use this to check what's actually running before assuming a model or capability.",
           inputSchema: {
             type: "object",
             properties: {},
           },
         },
         {
-          name: "llamacpp_session_stats",
-          description: "Report cumulative token usage sent to/received from the local llama.cpp server so far in this session, with a per-tool breakdown. Use this to see how many tokens have been offloaded from the orchestrating agent's own context.",
+          name: "local_llm_session_stats",
+          description: "Report cumulative token usage sent to/received from the local LLM server so far in this session, with a per-tool breakdown. Use this to see how many tokens have been offloaded from the orchestrating agent's own context.",
           inputSchema: {
             type: "object",
             properties: {},
           },
         },
         {
-          name: "llamacpp_tokenize",
-          description: "Count how many tokens a piece of text would consume according to the local llama.cpp server's currently loaded tokenizer. Useful for checking context-window fit before sending large content.",
+          name: "local_llm_tokenize",
+          description: "Count how many tokens a piece of text would consume according to the local LLM server's currently loaded tokenizer. Useful for checking context-window fit before sending large content.",
           inputSchema: {
             type: "object",
             properties: {
@@ -375,8 +375,8 @@ class LlamaCppServer {
           },
         },
         {
-          name: "llamacpp_semantic_similarity",
-          description: "Rank a list of candidate texts by semantic similarity to a query, using the local llama.cpp server's embedding model. Returns similarity scores only, never raw embedding vectors, to keep output small.",
+          name: "local_llm_semantic_similarity",
+          description: "Rank a list of candidate texts by semantic similarity to a query, using the local LLM server's embedding model. Returns similarity scores only, never raw embedding vectors, to keep output small.",
           inputSchema: {
             type: "object",
             properties: {
@@ -402,35 +402,35 @@ class LlamaCppServer {
 
       try {
         switch (name) {
-          case "llamacpp_generate_code":
+          case "local_llm_generate_code":
             return await this.generateCode(args);
-          case "llamacpp_explain_code":
+          case "local_llm_explain_code":
             return await this.explainCode(args);
-          case "llamacpp_review_code":
+          case "local_llm_review_code":
             return await this.reviewCode(args);
-          case "llamacpp_refactor_code":
+          case "local_llm_refactor_code":
             return await this.refactorCode(args);
-          case "llamacpp_fix_code":
+          case "local_llm_fix_code":
             return await this.fixCode(args);
-          case "llamacpp_write_tests":
+          case "local_llm_write_tests":
             return await this.writeTests(args);
-          case "llamacpp_general_task":
+          case "local_llm_general_task":
             return await this.generalTask(args);
-          case "llamacpp_review_file":
+          case "local_llm_review_file":
             return await this.reviewFile(args);
-          case "llamacpp_explain_file":
+          case "local_llm_explain_file":
             return await this.explainFile(args);
-          case "llamacpp_analyze_files":
+          case "local_llm_analyze_files":
             return await this.analyzeFiles(args);
-          case "llamacpp_generate_code_with_context":
+          case "local_llm_generate_code_with_context":
             return await this.generateCodeWithContext(args);
-          case "llamacpp_server_info":
+          case "local_llm_server_info":
             return await this.serverInfo();
-          case "llamacpp_session_stats":
+          case "local_llm_session_stats":
             return this.sessionStats();
-          case "llamacpp_tokenize":
+          case "local_llm_tokenize":
             return await this.tokenize(args);
-          case "llamacpp_semantic_similarity":
+          case "local_llm_semantic_similarity":
             return await this.semanticSimilarity(args);
           default:
             throw new Error(`Unknown tool: ${name}`);
@@ -449,7 +449,7 @@ class LlamaCppServer {
   }
 
   connectionErrorMessage() {
-    return `Cannot connect to llama.cpp server. Make sure llama-server is running (default: ${LLAMACPP_BASE_URL}).`;
+    return `Cannot connect to local LLM server. Make sure it's running and OpenAI-compatible (llama-server, vLLM, LM Studio, etc.) at ${LOCAL_LLM_BASE_URL}.`;
   }
 
   async fetchAvailableModels() {
@@ -459,12 +459,12 @@ class LlamaCppServer {
     }
 
     try {
-      const response = await axios.get(`${LLAMACPP_BASE_URL}/v1/models`, {
+      const response = await axios.get(`${LOCAL_LLM_BASE_URL}/v1/models`, {
         timeout: 5000,
       });
       const models = response.data?.data ?? [];
       if (models.length === 0) {
-        throw new Error("llama.cpp server reported no loaded model");
+        throw new Error("local LLM server reported no loaded model");
       }
 
       this.modelsCache = models;
@@ -475,7 +475,7 @@ class LlamaCppServer {
       if (error.code === "ECONNREFUSED") {
         throw new Error(this.connectionErrorMessage(), { cause: error });
       }
-      throw new Error(`Failed to discover model from llama.cpp server: ${error.message}`, { cause: error });
+      throw new Error(`Failed to discover model from local LLM server: ${error.message}`, { cause: error });
     }
   }
 
@@ -502,7 +502,7 @@ class LlamaCppServer {
     return { id: first.id, family: resolveFamily(first.id) };
   }
 
-  async callLlamaCpp(toolName, args) {
+  async callLocalLlm(toolName, args) {
     const { model: explicitModel, ...promptArgs } = args;
     const resolved = await this.resolveModel(explicitModel, toolName);
     const messages = buildMessages(toolName, promptArgs, resolved.family);
@@ -519,21 +519,21 @@ class LlamaCppServer {
     }
 
     try {
-      const response = await axios.post(`${LLAMACPP_BASE_URL}/v1/chat/completions`, body, {
+      const response = await axios.post(`${LOCAL_LLM_BASE_URL}/v1/chat/completions`, body, {
         timeout: 900000, // 15 minute timeout (overly long, to account for slow local models)
       });
 
       this.recordTokenUsage(toolName, response.data.usage);
       const choice = response.data.choices[0];
       if (choice.finish_reason === "length") {
-        return `${choice.message.content}\n\n[WARNING: response was truncated at the ${MAX_TOKENS}-token generation limit (LLAMACPP_MAX_TOKENS) before finishing. Consider a narrower request, or raise the limit.]`;
+        return `${choice.message.content}\n\n[WARNING: response was truncated at the ${MAX_TOKENS}-token generation limit (LOCAL_LLM_MAX_TOKENS) before finishing. Consider a narrower request, or raise the limit.]`;
       }
       return choice.message.content;
     } catch (error) {
       if (error.code === "ECONNREFUSED") {
         throw new Error(this.connectionErrorMessage(), { cause: error });
       }
-      throw new Error(`llama.cpp error: ${error.message}`, { cause: error });
+      throw new Error(`local LLM error: ${error.message}`, { cause: error });
     }
   }
 
@@ -569,7 +569,7 @@ class LlamaCppServer {
     const { text, include_tokens } = args;
     try {
       const response = await axios.post(
-        `${LLAMACPP_BASE_URL}/tokenize`,
+        `${LOCAL_LLM_BASE_URL}/tokenize`,
         { content: text },
         { timeout: 10000 }
       );
@@ -591,7 +591,7 @@ class LlamaCppServer {
 
     try {
       const response = await axios.post(
-        `${LLAMACPP_BASE_URL}/v1/embeddings`,
+        `${LOCAL_LLM_BASE_URL}/v1/embeddings`,
         { model: resolved.id, input: [query, ...candidates] },
         { timeout: 60000 }
       );
@@ -616,37 +616,37 @@ class LlamaCppServer {
   }
 
   async generateCode(args) {
-    const response = await this.callLlamaCpp("generate_code", args);
+    const response = await this.callLocalLlm("generate_code", args);
     return { content: [{ type: "text", text: response }] };
   }
 
   async explainCode(args) {
-    const response = await this.callLlamaCpp("explain_code", args);
+    const response = await this.callLocalLlm("explain_code", args);
     return { content: [{ type: "text", text: response }] };
   }
 
   async reviewCode(args) {
-    const response = await this.callLlamaCpp("review_code", args);
+    const response = await this.callLocalLlm("review_code", args);
     return { content: [{ type: "text", text: response }] };
   }
 
   async refactorCode(args) {
-    const response = await this.callLlamaCpp("refactor_code", args);
+    const response = await this.callLocalLlm("refactor_code", args);
     return { content: [{ type: "text", text: response }] };
   }
 
   async fixCode(args) {
-    const response = await this.callLlamaCpp("fix_code", args);
+    const response = await this.callLocalLlm("fix_code", args);
     return { content: [{ type: "text", text: response }] };
   }
 
   async writeTests(args) {
-    const response = await this.callLlamaCpp("write_tests", args);
+    const response = await this.callLocalLlm("write_tests", args);
     return { content: [{ type: "text", text: response }] };
   }
 
   async generalTask(args) {
-    const response = await this.callLlamaCpp("general_task", args);
+    const response = await this.callLocalLlm("general_task", args);
     return { content: [{ type: "text", text: response }] };
   }
 
@@ -665,7 +665,7 @@ class LlamaCppServer {
     const fileName = path.basename(file_path);
     const codeGraphContext = await getCodeGraphContext(fileName);
 
-    const response = await this.callLlamaCpp("review_file", {
+    const response = await this.callLocalLlm("review_file", {
       code,
       focus,
       fileName,
@@ -682,7 +682,7 @@ class LlamaCppServer {
     const fileName = path.basename(file_path);
     const codeGraphContext = await getCodeGraphContext(fileName);
 
-    const response = await this.callLlamaCpp("explain_file", {
+    const response = await this.callLocalLlm("explain_file", {
       code,
       context,
       fileName,
@@ -706,7 +706,7 @@ class LlamaCppServer {
     );
     const codeGraphContext = await getCodeGraphContext(expandedPaths.map((p) => path.basename(p)).join(" "));
 
-    const response = await this.callLlamaCpp("analyze_files", {
+    const response = await this.callLocalLlm("analyze_files", {
       task,
       filesContent: filesContent.join("\n"),
       codeGraphContext,
@@ -733,7 +733,7 @@ class LlamaCppServer {
       codeGraphContext = await getCodeGraphContext(expandedContextFiles.map((p) => path.basename(p)).join(" "));
     }
 
-    const response = await this.callLlamaCpp("generate_code_with_context", {
+    const response = await this.callLocalLlm("generate_code_with_context", {
       prompt,
       language,
       contextSection,
@@ -744,33 +744,39 @@ class LlamaCppServer {
   }
 
   async serverInfo() {
+    let modelsResponse;
     try {
-      const [propsResponse, modelsResponse] = await Promise.all([
-        axios.get(`${LLAMACPP_BASE_URL}/props`, { timeout: 5000 }),
-        axios.get(`${LLAMACPP_BASE_URL}/v1/models`, { timeout: 5000 }),
-      ]);
-
-      const model = modelsResponse.data?.data?.[0];
-      const props = propsResponse.data;
-
-      const info = {
-        base_url: LLAMACPP_BASE_URL,
-        model_id: model?.id ?? null,
-        model_family: model?.id ? resolveFamily(model.id) : null,
-        context_size: props?.default_generation_settings?.n_ctx ?? props?.n_ctx ?? null,
-        total_slots: props?.total_slots ?? null,
-        has_chat_template: Boolean(props?.chat_template),
-      };
-
-      return {
-        content: [{ type: "text", text: JSON.stringify(info, null, 2) }],
-      };
+      modelsResponse = await axios.get(`${LOCAL_LLM_BASE_URL}/v1/models`, { timeout: 5000 });
     } catch (error) {
       if (error.code === "ECONNREFUSED") {
         throw new Error(this.connectionErrorMessage(), { cause: error });
       }
-      throw new Error(`Failed to fetch llama.cpp server info: ${error.message}`, { cause: error });
+      throw new Error(`Failed to fetch local LLM server info: ${error.message}`, { cause: error });
     }
+
+    // /props is a llama.cpp-specific extension, not part of the OpenAI-compatible surface
+    // every backend implements -- best-effort only, so this tool still works against
+    // vLLM, LM Studio, etc. that don't have it.
+    let props = null;
+    try {
+      props = (await axios.get(`${LOCAL_LLM_BASE_URL}/props`, { timeout: 5000 })).data;
+    } catch {
+      // no-op: props stays null, matching a backend that doesn't implement /props
+    }
+
+    const model = modelsResponse.data?.data?.[0];
+    const info = {
+      base_url: LOCAL_LLM_BASE_URL,
+      model_id: model?.id ?? null,
+      model_family: model?.id ? resolveFamily(model.id) : null,
+      context_size: props?.default_generation_settings?.n_ctx ?? props?.n_ctx ?? null,
+      total_slots: props?.total_slots ?? null,
+      has_chat_template: props ? Boolean(props.chat_template) : null,
+    };
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(info, null, 2) }],
+    };
   }
 
   async run() {
@@ -780,13 +786,13 @@ class LlamaCppServer {
       await this.server.close();
       process.exit(0);
     });
-    console.error(`llama.cpp MCP server running on stdio (target: ${LLAMACPP_BASE_URL})`);
+    console.error(`local LLM MCP server running on stdio (target: ${LOCAL_LLM_BASE_URL})`);
   }
 }
 
-export { LlamaCppServer };
+export { LocalLlmServer };
 
 if (process.argv[1] && import.meta.url === `file://${realpathSync(process.argv[1])}`) {
-  const server = new LlamaCppServer();
+  const server = new LocalLlmServer();
   server.run();
 }

@@ -54,7 +54,7 @@ before(async () => {
   mock = await startMockLlamaServer();
   proc = spawn("node", [INDEX_PATH], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, LLAMACPP_BASE_URL: mock.url },
+    env: { ...process.env, LOCAL_LLM_BASE_URL: mock.url },
   });
   proc.stdout.on("data", (d) => (buffer += d.toString()));
 
@@ -72,21 +72,21 @@ after(async () => {
   await mock.close();
 });
 
-test("tools/list exposes all 15 llamacpp_* tools", async () => {
+test("tools/list exposes all 15 local_llm_* tools", async () => {
   const id = send("tools/list", {});
   const response = await waitForResponse(id);
   const names = response.result.tools.map((t) => t.name);
   assert.equal(names.length, 15);
-  assert.ok(names.every((n) => n.startsWith("llamacpp_")));
-  assert.ok(names.includes("llamacpp_server_info"));
-  assert.ok(names.includes("llamacpp_session_stats"));
-  assert.ok(names.includes("llamacpp_tokenize"));
-  assert.ok(names.includes("llamacpp_semantic_similarity"));
+  assert.ok(names.every((n) => n.startsWith("local_llm_")));
+  assert.ok(names.includes("local_llm_server_info"));
+  assert.ok(names.includes("local_llm_session_stats"));
+  assert.ok(names.includes("local_llm_tokenize"));
+  assert.ok(names.includes("local_llm_semantic_similarity"));
 });
 
-test("tools/call routes llamacpp_generate_code through to the llama.cpp backend", async () => {
+test("tools/call routes local_llm_generate_code through to the local LLM backend", async () => {
   const id = send("tools/call", {
-    name: "llamacpp_generate_code",
+    name: "local_llm_generate_code",
     arguments: { prompt: "reverse a string", language: "python" },
   });
   const response = await waitForResponse(id);
@@ -99,15 +99,15 @@ test("tools/call returns a friendly error payload for an unknown tool instead of
   assert.match(response.result.content[0].text, /Unknown tool/);
 });
 
-test("tools/call on llamacpp_server_info reports the mock model", async () => {
-  const id = send("tools/call", { name: "llamacpp_server_info", arguments: {} });
+test("tools/call on local_llm_server_info reports the mock model", async () => {
+  const id = send("tools/call", { name: "local_llm_server_info", arguments: {} });
   const response = await waitForResponse(id);
   const info = JSON.parse(response.result.content[0].text);
   assert.equal(info.model_id, "mock-org/mock-model-7b");
 });
 
-test("tools/call on llamacpp_session_stats reflects the earlier generate_code call", async () => {
-  const id = send("tools/call", { name: "llamacpp_session_stats", arguments: {} });
+test("tools/call on local_llm_session_stats reflects the earlier generate_code call", async () => {
+  const id = send("tools/call", { name: "local_llm_session_stats", arguments: {} });
   const response = await waitForResponse(id);
   const stats = JSON.parse(response.result.content[0].text);
   assert.equal(stats.calls, 1);

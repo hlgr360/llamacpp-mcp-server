@@ -26,42 +26,42 @@ results as needed. This approach:
 
 These tools accept code as string parameters - useful when code is already in the conversation:
 
-1. **llamacpp_generate_code** - Generate new code from requirements
-2. **llamacpp_explain_code** - Explain how code works
-3. **llamacpp_review_code** - Review code for issues and improvements
-4. **llamacpp_refactor_code** - Refactor code to improve quality
-5. **llamacpp_fix_code** - Fix bugs or errors in code
-6. **llamacpp_write_tests** - Generate unit tests
-7. **llamacpp_general_task** - Execute any general coding task
+1. **local_llm_generate_code** - Generate new code from requirements
+2. **local_llm_explain_code** - Explain how code works
+3. **local_llm_review_code** - Review code for issues and improvements
+4. **local_llm_refactor_code** - Refactor code to improve quality
+5. **local_llm_fix_code** - Fix bugs or errors in code
+6. **local_llm_write_tests** - Generate unit tests
+7. **local_llm_general_task** - Execute any general coding task
 
 ### File-Aware Tools (Massive token savings!)
 
 These tools read files directly on the MCP server, dramatically reducing conversation token usage:
 
-8. **llamacpp_review_file** - Review a file by path (saves ~98.75% tokens vs reading + reviewing)
-9. **llamacpp_explain_file** - Explain a file by path
-10. **llamacpp_analyze_files** - Analyze multiple files together to understand relationships.
+8. **local_llm_review_file** - Review a file by path (saves ~98.75% tokens vs reading + reviewing)
+9. **local_llm_explain_file** - Explain a file by path
+10. **local_llm_analyze_files** - Analyze multiple files together to understand relationships.
     `file_paths` entries may be glob patterns (e.g. `src/**/*.js`), expanded server-side
     (capped at 50 matched files)
-11. **llamacpp_generate_code_with_context** - Generate code using existing files as reference
+11. **local_llm_generate_code_with_context** - Generate code using existing files as reference
     patterns. `context_files` also supports glob patterns, same as above
 
 ### Introspection
 
-12. **llamacpp_server_info** - Reports which model `llama-server` currently has loaded, its
+12. **local_llm_server_info** - Reports which model `llama-server` currently has loaded, its
     context size, slot count, and whether it has a chat template — useful for any agent to
     check what's actually running before assuming a model or capability.
-13. **llamacpp_session_stats** - Reports cumulative prompt/completion/total token usage sent
+13. **local_llm_session_stats** - Reports cumulative prompt/completion/total token usage sent
     to and received from `llama-server` so far in this session, with a per-tool breakdown —
     based on the `usage` field `llama-server` returns per request. Answers "how many tokens
     have actually been offloaded to the local model instead of my own context?"
 
 ### Primitives
 
-14. **llamacpp_tokenize** - Counts how many tokens a piece of text would consume according to
+14. **local_llm_tokenize** - Counts how many tokens a piece of text would consume according to
     the currently loaded tokenizer, via `llama-server`'s native `/tokenize` endpoint. Useful
     for checking context-window fit before sending large content.
-15. **llamacpp_semantic_similarity** - Ranks candidate texts by semantic similarity to a query
+15. **local_llm_semantic_similarity** - Ranks candidate texts by semantic similarity to a query
     using `llama-server`'s embedding endpoint (`/v1/embeddings` — requires `llama-server` to
     be started with `--embeddings`). Returns similarity scores only, never raw embedding
     vectors, since a 768-4096 float vector serialized as tool output would dump thousands of
@@ -123,10 +123,10 @@ curl http://localhost:8080/v1/models
 ```
 
 By default this MCP server talks to `http://localhost:8080`. Override with the
-`LLAMACPP_BASE_URL` environment variable if you run `llama-server` on a different host/port:
+`LOCAL_LLM_BASE_URL` environment variable if you run `llama-server` on a different host/port:
 
 ```bash
-export LLAMACPP_BASE_URL=http://localhost:8081
+export LOCAL_LLM_BASE_URL=http://localhost:8081
 ```
 
 ### 3. Configure Your MCP Client
@@ -144,9 +144,9 @@ for Claude Code/Desktop as the reference example:
 ```json
 {
   "mcpServers": {
-    "llamacpp": {
+    "local_llm": {
       "command": "npx",
-      "args": ["-y", "llamacpp-mcp-server"]
+      "args": ["-y", "local-llm-mcp"]
     }
   }
 }
@@ -157,25 +157,25 @@ for Claude Code/Desktop as the reference example:
 ```json
 {
   "mcpServers": {
-    "llamacpp": {
+    "local_llm": {
       "command": "npx",
-      "args": ["-y", "github:hlgr360/llamacpp-mcp-server"]
+      "args": ["-y", "github:hlgr360/local-llm-mcp"]
     }
   }
 }
 ```
 
 This tracks whatever is on `main` rather than a released version — pin to a tag or commit
-instead if you want stability, e.g. `github:hlgr360/llamacpp-mcp-server#v2.0.1`.
+instead if you want stability, e.g. `github:hlgr360/local-llm-mcp#v2.0.1`.
 
 **Option C — clone locally** (needed if you're developing on the server itself):
 
 ```json
 {
   "mcpServers": {
-    "llamacpp": {
+    "local_llm": {
       "command": "node",
-      "args": ["/Users/holger/repos/github/llamacpp-mcp-server/index.js"]
+      "args": ["/Users/holger/repos/github/local-llm-mcp/index.js"]
     }
   }
 }
@@ -199,10 +199,10 @@ Once configured, your agent will automatically have access to the llama.cpp tool
 
 ### Direct Usage
 Ask the agent to use specific tools:
-- "Use llamacpp_generate_code to create a function that..."
-- "Use llamacpp_review_code to check this code for issues"
-- "Use llamacpp_server_info to check what model is loaded"
-- "Use llamacpp_session_stats to see how many tokens have been offloaded to llama.cpp so far"
+- "Use local_llm_generate_code to create a function that..."
+- "Use local_llm_review_code to check this code for issues"
+- "Use local_llm_server_info to check what model is loaded"
+- "Use local_llm_session_stats to see how many tokens have been offloaded to llama.cpp so far"
 
 ### Automatic Orchestration
 Simply ask the agent to do tasks, and it will decide when to delegate to llama.cpp:
@@ -259,7 +259,7 @@ genuine framing differences (e.g. reasoning-style models).
 
 For reasoning models (Qwen3.x, DeepSeek-R1/-V3.x, etc.), also start `llama-server` with
 `--reasoning-format deepseek`. This server only ever reads `message.content` from the
-response (see `callLlamaCpp` in `index.js`) — with `--reasoning-format deepseek`,
+response (see `callLocalLlm` in `index.js`) — with `--reasoning-format deepseek`,
 `llama-server` splits the model's `<think>...</think>` output into a separate
 `message.reasoning_content` field and leaves `content` as just the final answer. Without
 it, raw thinking text leaks into every tool's returned output.
@@ -274,7 +274,7 @@ Confirmed on this project's own dev machine: a `review_code` call generated 3971
 
 Two controls address this:
 
-- **`LLAMACPP_MAX_TOKENS`** (default `16384`): every request now includes a `max_tokens`
+- **`LOCAL_LLM_MAX_TOKENS`** (default `16384`): every request now includes a `max_tokens`
   ceiling, bounding worst-case latency regardless of model or task. If a response is cut
   off by this limit, the tool's returned text gets an appended
   `[WARNING: response was truncated...]` note rather than silently returning a cut-off
@@ -318,7 +318,7 @@ Add new tools by:
 1. Adding a tool definition in the `ListToolsRequestSchema` handler in `index.js`
 2. Adding a `DEFAULT_PROMPTS` entry for it in `prompts.js`
 3. Creating a new method (like `generateCode`, `reviewCode`, etc.) that calls
-   `this.callLlamaCpp("your_tool_key", args)`
+   `this.callLocalLlm("your_tool_key", args)`
 4. Adding a case in the `CallToolRequestSchema` handler
 
 ## Troubleshooting
@@ -326,7 +326,7 @@ Add new tools by:
 ### "Cannot connect to llama.cpp server" Error
 - Ensure `llama-server` is running: `llama-server -m <model.gguf> --jinja --port 8080`
 - Check it's on the expected port: `curl http://localhost:8080/health`
-- Confirm `LLAMACPP_BASE_URL` (if set) matches where `llama-server` is actually listening
+- Confirm `LOCAL_LLM_BASE_URL` (if set) matches where `llama-server` is actually listening
 
 ### Tools Not Appearing in Your MCP Client
 - Verify the config path is correct
@@ -336,7 +336,7 @@ Add new tools by:
 ### Slow Responses / Timeouts
 - **Expected behavior**: local model calls typically take 60-180 seconds depending on model size and hardware
 - Consider using a smaller/faster model for simple tasks
-- Adjust the timeout in `index.js` (currently 900000ms = 15 minutes, in `callLlamaCpp`)
+- Adjust the timeout in `index.js` (currently 900000ms = 15 minutes, in `callLocalLlm`)
 - Ensure your machine has adequate resources for the model
 - For large files, consider using smaller models or breaking the analysis into chunks
 
@@ -344,14 +344,14 @@ Add new tools by:
 
 ### Basic Workflow
 1. **User asks**: "Create a function to validate email addresses"
-2. **Agent decides**: "This is a code generation task, I'll use llamacpp_generate_code"
+2. **Agent decides**: "This is a code generation task, I'll use local_llm_generate_code"
 3. **llama.cpp generates**: Initial code implementation
 4. **Agent reviews**: Checks the code, may suggest improvements or fixes
 5. **Result**: User gets llama.cpp-generated code with the agent's oversight
 
 ### File-Aware Workflow (Token Saver!)
 1. **User asks**: "Review the code in index.js for security issues"
-2. **Agent calls**: `llamacpp_review_file` with the file path and focus="security"
+2. **Agent calls**: `local_llm_review_file` with the file path and focus="security"
 3. **MCP server**: Reads index.js directly (no tokens used in conversation!)
 4. **llama.cpp analyzes**: Reviews the file
 5. **Agent refines**: Adds context or additional insights
@@ -359,7 +359,7 @@ Add new tools by:
 
 ### Multi-File Analysis Workflow
 1. **User asks**: "How do index.js and package.json relate?"
-2. **Agent calls**: `llamacpp_analyze_files` with both file paths
+2. **Agent calls**: `local_llm_analyze_files` with both file paths
 3. **MCP server**: Reads both files server-side
 4. **llama.cpp analyzes**: Identifies dependencies, patterns, relationships
 5. **Result**: Cross-file insights without sending files through the agent's conversation
@@ -381,7 +381,7 @@ Response time depends on:
 
 ### Token Usage
 - **Traditional approach**: Read 700-line file (2000 tokens) + Review (2000 tokens) = **4000 tokens**
-- **File-aware approach**: Call `llamacpp_review_file` with path = **~50 tokens**
+- **File-aware approach**: Call `local_llm_review_file` with path = **~50 tokens**
 - **Savings**: ~98.75% reduction in the orchestrating agent's API token usage!
 
 ## Benefits Over Pure Local or Pure Cloud
@@ -393,7 +393,7 @@ Response time depends on:
 ## Project Structure
 
 ```
-llamacpp-mcp-server/
+local-llm-mcp/
 ├── index.js              # Main MCP server implementation
 ├── prompts.js            # Prompt registry, indexed by model family
 ├── test/                 # Automated test suite (npm test) — mocked llama-server backend

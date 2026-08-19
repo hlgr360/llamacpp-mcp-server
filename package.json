@@ -1,12 +1,12 @@
 {
-  "name": "llamacpp-mcp-server",
-  "version": "2.5.0",
-  "description": "MCP server bridging a local llama.cpp server to Claude Code and other coding agents",
+  "name": "local-llm-mcp",
+  "version": "3.0.0",
+  "description": "MCP server bridging a local, OpenAI-compatible LLM server (llama.cpp, vLLM, LM Studio, etc.) to Claude Code and other coding agents",
   "type": "module",
   "license": "AGPL-3.0-only",
   "main": "index.js",
   "bin": {
-    "llamacpp-mcp-server": "index.js"
+    "local-llm-mcp": "index.js"
   },
   "files": [
     "index.js",
@@ -15,11 +15,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hlgr360/llamacpp-mcp-server.git"
+    "url": "git+https://github.com/hlgr360/local-llm-mcp.git"
   },
-  "homepage": "https://github.com/hlgr360/llamacpp-mcp-server",
+  "homepage": "https://github.com/hlgr360/local-llm-mcp",
   "bugs": {
-    "url": "https://github.com/hlgr360/llamacpp-mcp-server/issues"
+    "url": "https://github.com/hlgr360/local-llm-mcp/issues"
   },
   "scripts": {
     "start": "node index.js",

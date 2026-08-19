@@ -1,5 +1,33 @@
 # Changelog
 
+## Version 3.0.0 - Provider-agnostic core, renamed to local-llm-mcp
+
+### Breaking Changes
+- **Package/repo renamed**: `llamacpp-mcp-server` → `local-llm-mcp`
+  (`github.com/hlgr360/local-llm-mcp`, `npx local-llm-mcp`), since "llamacpp" branding
+  stopped being accurate once other OpenAI-compatible backends are supported.
+- **All 15 tools renamed** `llamacpp_*` → `local_llm_*` (e.g. `llamacpp_generate_code` →
+  `local_llm_generate_code`). MCP has no tool-alias mechanism, so this breaks any existing
+  client config referencing the old names by name — there's no smooth migration path.
+- **Env vars renamed**: `LLAMACPP_BASE_URL` → `LOCAL_LLM_BASE_URL`,
+  `LLAMACPP_MAX_TOKENS` → `LOCAL_LLM_MAX_TOKENS`. No dual-read fallback.
+- `LlamaCppServer` class and `callLlamaCpp` method renamed to `LocalLlmServer` /
+  `callLocalLlm` (affects anyone importing the class directly, e.g. in tests).
+
+### Features
+- **Provider-agnostic `serverInfo`**: the `/props` call (a llama.cpp-specific extension,
+  not part of the OpenAI-compatible surface) is now best-effort. If it fails while
+  `/v1/models` succeeds — e.g. against vLLM or LM Studio, which don't implement `/props` —
+  `context_size`/`total_slots`/`has_chat_template` come back `null` instead of failing the
+  whole call. Every other endpoint this server uses (`/v1/models`, `/v1/chat/completions`,
+  `/v1/embeddings`, `/tokenize`) was already either OpenAI-standard or already
+  best-effort/optional, so this was the one remaining hard llama.cpp-specific dependency.
+- Generic wording throughout (tool descriptions, error messages, README) — "local LLM
+  server" instead of "llama.cpp server" — since these tools now genuinely work against any
+  OpenAI-compatible backend, not just llama.cpp. The `llama-server` setup walkthrough in
+  the README remains the primary worked example, since it's still the only backend this
+  project actually tests against.
+
 ## Version 2.5.0 - Latency controls for reasoning models
 
 ### Features

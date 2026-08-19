@@ -46,6 +46,11 @@ export function startMockLlamaServer() {
       }
 
       if (req.method === "GET" && req.url === "/props") {
+        if (state.propsAvailable === false) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "not found" }));
+          return;
+        }
         res.writeHead(200, { "Content-Type": "application/json" });
         res.end(JSON.stringify(state.props));
         return;

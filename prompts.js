@@ -2,10 +2,10 @@
 //
 // Each tool has a DEFAULT_PROMPTS entry: a static `system` framing string and a
 // `user` function that builds the per-call payload from the tool's args. A model
-// family (detected from whatever model llama.cpp reports as loaded) can override
-// either half in FAMILY_OVERRIDES. buildMessages() resolves the two into the
-// {role, content} pairs sent to /v1/chat/completions, letting llama-server apply
-// the loaded model's own chat template on top.
+// family (detected from whatever model the local LLM server reports as loaded) can
+// override either half in FAMILY_OVERRIDES. buildMessages() resolves the two into the
+// {role, content} pairs sent to /v1/chat/completions, letting the server apply the
+// loaded model's own chat template on top.
 
 const FAMILY_KEYWORDS = {
   gemma: "gemma",
@@ -113,7 +113,7 @@ function codeGraphSection(args) {
 
 // Sparse per-family overrides. Only populate an entry where a model family
 // genuinely needs different framing than the default — most families are fine
-// with DEFAULT_PROMPTS as-is since llama-server applies the model's own chat
+// with DEFAULT_PROMPTS as-is since the local LLM server applies the model's own chat
 // template on top of whatever we send here.
 export const FAMILY_OVERRIDES = {
   deepseek: {
@@ -142,8 +142,8 @@ export const TOOL_MODEL_PREFERENCES = {};
 // chat_template_kwargs: { enable_thinking }, letting you trade thinking-model quality for
 // speed per tool. Empty by default -- omitted entirely means "whatever the model/template
 // does by default," unchanged from before this existed. Not a standard OpenAI field; it's
-// a Qwen3-family chat-template convention specifically, and llama-server silently ignores
-// it for templates that don't recognize it. Populate your own, e.g.
+// a Qwen3-family chat-template convention specifically, and the local LLM server should
+// silently ignore it for templates that don't recognize it. Populate your own, e.g.
 // { generate_code: false, fix_code: true } to skip thinking on quick generation but keep
 // it for harder debugging.
 export const TOOL_REASONING_OVERRIDES = {};

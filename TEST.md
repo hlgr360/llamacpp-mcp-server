@@ -10,7 +10,7 @@ stands in for `llama-server`'s `/v1/models`, `/v1/chat/completions`, and `/props
 
 - `test/prompts.test.js` — `resolveFamily()` and `buildMessages()`: family detection and per-family
   prompt overrides
-- `test/server.test.js` — `LlamaCppServer` methods directly: model resolution/caching, file-aware
+- `test/server.test.js` — `LocalLlmServer` methods directly: model resolution/caching, file-aware
   tools, `serverInfo`
 - `test/server-unreachable.test.js` — the friendly connection-error path when `llama-server` is down
 - `test/integration.test.js` — spawns the real `node index.js` entry point and drives it over MCP
@@ -42,14 +42,14 @@ Use this file to:
 These tools accept code as strings - useful when code is already in context:
 
 ```
-Test: llamacpp_explain_code
+Test: local_llm_explain_code
 - Pass a small code snippet
 - Verify the response explains it correctly
 - Expected time: 60-120 seconds
 ```
 
 ```
-Test: llamacpp_review_code
+Test: local_llm_review_code
 - Pass a code snippet with potential issues
 - Check if the response identifies problems
 - Expected time: 60-120 seconds
@@ -59,12 +59,12 @@ Test: llamacpp_review_code
 
 These tools read files directly on the MCP server, reducing conversation token usage:
 
-#### Test: llamacpp_review_file
+#### Test: local_llm_review_file
 
 ```javascript
 // Usage example:
 {
-  file_path: "/Users/holger/repos/github/llamacpp-mcp-server/index.js",
+  file_path: "/Users/holger/repos/github/local-llm-mcp/index.js",
   focus: "error handling"
 }
 ```
@@ -75,12 +75,12 @@ These tools read files directly on the MCP server, reducing conversation token u
 - Returns code review focused on error handling
 - **Token savings**: File content doesn't go through the orchestrating agent's conversation
 
-#### Test: llamacpp_explain_file
+#### Test: local_llm_explain_file
 
 ```javascript
 // Usage example:
 {
-  file_path: "/Users/holger/repos/github/llamacpp-mcp-server/package.json",
+  file_path: "/Users/holger/repos/github/local-llm-mcp/package.json",
   context: "Focus on dependencies and their purposes"
 }
 ```
@@ -90,14 +90,14 @@ These tools read files directly on the MCP server, reducing conversation token u
 - llama.cpp explains the file structure and dependencies
 - **Token savings**: No need to read/paste file in conversation
 
-#### Test: llamacpp_analyze_files
+#### Test: local_llm_analyze_files
 
 ```javascript
 // Usage example:
 {
   file_paths: [
-    "/Users/holger/repos/github/llamacpp-mcp-server/index.js",
-    "/Users/holger/repos/github/llamacpp-mcp-server/package.json"
+    "/Users/holger/repos/github/local-llm-mcp/index.js",
+    "/Users/holger/repos/github/local-llm-mcp/package.json"
   ],
   task: "Analyze how the dependencies in package.json are used in index.js"
 }
@@ -112,14 +112,14 @@ These tools read files directly on the MCP server, reducing conversation token u
 `file_paths` also accepts glob patterns instead of listing every file, e.g.
 `file_paths: ["test/*.test.js"]` — expanded server-side, capped at 50 matched files.
 
-#### Test: llamacpp_generate_code_with_context
+#### Test: local_llm_generate_code_with_context
 
 ```javascript
 // Usage example:
 {
   prompt: "Create a new tool handler method following the same pattern",
   language: "javascript",
-  context_files: ["/Users/holger/repos/github/llamacpp-mcp-server/index.js"]
+  context_files: ["/Users/holger/repos/github/local-llm-mcp/index.js"]
 }
 ```
 
@@ -129,7 +129,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 - Returns code that follows project conventions
 - **Token savings**: Reference files handled server-side
 
-#### Test: llamacpp_server_info
+#### Test: local_llm_server_info
 
 ```javascript
 // Usage example (no args):
@@ -162,7 +162,7 @@ After making changes to the MCP server:
 - [ ] Run `npm run lint` (ESLint) to catch unused vars, undefined refs, etc.
 - [ ] Run `node --check index.js` and `node --check prompts.js` to verify syntax
 - [ ] Restart your MCP client to reload the MCP server
-- [ ] Verify new tools appear in your client's tool list (Claude Code prefixes them `mcp__llamacpp__`)
+- [ ] Verify new tools appear in your client's tool list (Claude Code prefixes them `mcp__local_llm__`)
 - [ ] Test at least one file-aware tool with a real project file
 - [ ] Confirm `llama-server` is running (`curl http://localhost:8080/health`)
 - [ ] Check that timeout warnings appear if calls take too long
@@ -173,13 +173,13 @@ After making changes to the MCP server:
 ### Before (String-Based)
 ```
 Agent: Read file (2000 tokens)
-Agent: Call llamacpp_review_code with content (2000 tokens sent)
+Agent: Call local_llm_review_code with content (2000 tokens sent)
 Total conversation tokens: ~4000
 ```
 
 ### After (File-Aware)
 ```
-Agent: Call llamacpp_review_file with path (50 tokens)
+Agent: Call local_llm_review_file with path (50 tokens)
 MCP Server: Reads file internally (0 conversation tokens)
 Total conversation tokens: ~50
 ```
@@ -195,7 +195,7 @@ Total conversation tokens: ~50
 **Solution**:
 - Expected for large files or complex tasks
 - Consider using a smaller/faster model for simpler tasks
-- Increase timeout in `index.js` if needed (currently 900000ms = 15 minutes, in `callLlamaCpp`)
+- Increase timeout in `index.js` if needed (currently 900000ms = 15 minutes, in `callLocalLlm`)
 
 ### Issue: "Tools not appearing"
 **Solution**:
@@ -213,22 +213,22 @@ Total conversation tokens: ~50
 
 ```
 1. Verify server is running:
-   - Check your client's tool list for the llamacpp_* tools (Claude Code shows them as
-     mcp__llamacpp__<tool>)
-   - Call llamacpp_server_info and confirm it reports the expected model
+   - Check your client's tool list for the local_llm_* tools (Claude Code shows them as
+     mcp__local_llm__<tool>)
+   - Call local_llm_server_info and confirm it reports the expected model
 
 2. Simple test:
-   - Use llamacpp_explain_file on package.json
+   - Use local_llm_explain_file on package.json
    - Wait 60-120 seconds
    - Verify response makes sense
 
 3. Advanced test:
-   - Use llamacpp_analyze_files with index.js and package.json
+   - Use local_llm_analyze_files with index.js and package.json
    - Task: "Identify which npm packages are imported and used"
    - Verify cross-file analysis works
 
 4. Token savings test:
-   - Compare using llamacpp_review_code (paste file) vs llamacpp_review_file (path)
+   - Compare using local_llm_review_code (paste file) vs local_llm_review_file (path)
    - Observe token usage difference in conversation
 ```
 

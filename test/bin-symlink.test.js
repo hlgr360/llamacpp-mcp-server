@@ -24,8 +24,8 @@ let symlinkPath;
 
 before(async () => {
   mock = await startMockLlamaServer();
-  binDir = await mkdtemp(path.join(tmpdir(), "llamacpp-mcp-bin-"));
-  symlinkPath = path.join(binDir, "llamacpp-mcp-server");
+  binDir = await mkdtemp(path.join(tmpdir(), "local-llm-mcp-bin-"));
+  symlinkPath = path.join(binDir, "local-llm-mcp");
   await symlink(INDEX_PATH, symlinkPath);
 });
 
@@ -37,7 +37,7 @@ after(async () => {
 test("running index.js through a symlink (simulating npm's bin mechanism) still starts the server", async () => {
   const proc = spawn("node", [symlinkPath], {
     stdio: ["pipe", "pipe", "pipe"],
-    env: { ...process.env, LLAMACPP_BASE_URL: mock.url },
+    env: { ...process.env, LOCAL_LLM_BASE_URL: mock.url },
   });
 
   let buffer = "";
@@ -76,7 +76,7 @@ test("running index.js through a symlink (simulating npm's bin mechanism) still 
       }, 20);
     });
 
-    assert.equal(response.result.serverInfo.name, "llamacpp-mcp-server");
+    assert.equal(response.result.serverInfo.name, "local-llm-mcp");
   } finally {
     proc.kill();
   }

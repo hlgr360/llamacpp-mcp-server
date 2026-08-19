@@ -6,7 +6,7 @@ repo. For user-facing docs see `README.md`; for manual validation see `TEST.md`.
 ## What this is
 
 A Node.js MCP server (`index.js`) that bridges a local `llama-server` (llama.cpp's
-OpenAI-compatible server) to MCP-speaking coding agents, exposing 15 `llamacpp_*` tools.
+OpenAI-compatible server) to MCP-speaking coding agents, exposing 15 `local_llm_*` tools.
 `prompts.js` holds the system/user prompt templates, indexed by tool and by detected
 model family.
 
@@ -16,30 +16,30 @@ model family.
 npm install     # install deps (@modelcontextprotocol/sdk, axios) + devDeps (eslint)
 npm test        # run the automated suite (node --test) — mocked backend, ~250ms, no llama-server needed
 npm run lint    # ESLint (flat config, recommended rules only — no style/formatting rules)
-npm start        # run the MCP server on stdio (needs a real llama-server on LLAMACPP_BASE_URL)
+npm start        # run the MCP server on stdio (needs a real llama-server on LOCAL_LLM_BASE_URL)
 node --check index.js && node --check prompts.js   # quick syntax check
 ```
 
 Running against a **real** `llama-server` requires it to already be up (default
-`http://localhost:8080`, override via `LLAMACPP_BASE_URL`). `npm test` does not need this —
+`http://localhost:8080`, override via `LOCAL_LLM_BASE_URL`). `npm test` does not need this —
 `test/helpers/mockLlamaServer.js` stands in for it.
 
 ## Architecture, in one pass
 
-- `index.js` — `LlamaCppServer` class: registers tools (`ListToolsRequestSchema`), routes
+- `index.js` — `LocalLlmServer` class: registers tools (`ListToolsRequestSchema`), routes
   calls (`CallToolRequestSchema`), resolves/caches the currently-loaded model
-  (`resolveModel`, 30s TTL), and sends chat requests (`callLlamaCpp` →
+  (`resolveModel`, 30s TTL), and sends chat requests (`callLocalLlm` →
   `POST /v1/chat/completions`). File-aware tools (`review_file`, `explain_file`,
   `analyze_files`, `generate_code_with_context`) read files server-side before calling
-  `callLlamaCpp`, which is the whole point of this project — it saves the orchestrating
+  `callLocalLlm`, which is the whole point of this project — it saves the orchestrating
   agent from having to paste file contents into its own context.
-  Exports `LlamaCppServer` and only auto-starts (`server.run()`) when run directly (guarded
+  Exports `LocalLlmServer` and only auto-starts (`server.run()`) when run directly (guarded
   by `import.meta.url`), so tests can import the class without booting a stdio server.
-  `callLlamaCpp` also records each response's `usage` field on `this.tokenStats`
-  (`recordTokenUsage`), which `llamacpp_session_stats` reports back — an in-memory,
+  `callLocalLlm` also records each response's `usage` field on `this.tokenStats`
+  (`recordTokenUsage`), which `local_llm_session_stats` reports back — an in-memory,
   per-process counter, so it naturally scopes to one client session and resets on restart.
   Every request includes a `max_tokens: MAX_TOKENS` ceiling (default 16384, override via
-  `LLAMACPP_MAX_TOKENS`) — reasoning models have no natural output limit otherwise, and a
+  `LOCAL_LLM_MAX_TOKENS`) — reasoning models have no natural output limit otherwise, and a
   single call can spend an unbounded number of hidden `<think>` tokens before answering.
   `finish_reason === "length"` appends a truncation warning rather than silently returning
   a cut-off answer. `TOOL_REASONING_OVERRIDES[toolName]` (in `prompts.js`, empty by default)
@@ -62,16 +62,16 @@ Running against a **real** `llama-server` requires it to already be up (default
 ## Conventions to follow
 
 - **Adding a tool**: (1) tool definition in `ListToolsRequestSchema` handler, (2) a
-  `DEFAULT_PROMPTS` entry in `prompts.js`, (3) a method on `LlamaCppServer` calling
-  `this.callLlamaCpp("your_tool_key", args)`, (4) a case in the `CallToolRequestSchema`
-  switch. Keep the tool name prefixed `llamacpp_`.
+  `DEFAULT_PROMPTS` entry in `prompts.js`, (3) a method on `LocalLlmServer` calling
+  `this.callLocalLlm("your_tool_key", args)`, (4) a case in the `CallToolRequestSchema`
+  switch. Keep the tool name prefixed `local_llm_`.
 - **No hardcoded models.** Model is always auto-detected via `resolveModel`, with an
   optional per-call `model` arg override. Don't reintroduce a default/fallback model
   constant.
 - **File-aware tools take absolute paths** and read files inside the MCP server process —
   don't ask the orchestrating agent to paste file contents when a `*_file`/`*_files` tool
   variant exists for that purpose.
-- **`callLlamaCpp` only reads `message.content`** from the chat-completion response, never
+- **`callLocalLlm` only reads `message.content`** from the chat-completion response, never
   `message.reasoning_content`. If you add handling for reasoning output, keep in mind the
   server needs `--reasoning-format deepseek` for those to even be split apart — see
   README's "Prompt Templates" section.
@@ -84,14 +84,14 @@ Running against a **real** `llama-server` requires it to already be up (default
 
 ## Known constraints
 
-- Single 15-minute request timeout (`callLlamaCpp`), intentionally generous for slow local
+- Single 15-minute request timeout (`callLocalLlm`), intentionally generous for slow local
   hardware — don't "fix" this down without checking `TEST.md`'s timing notes.
-- `LLAMACPP_BASE_URL` is read once at module import time as a top-level constant; it can't
+- `LOCAL_LLM_BASE_URL` is read once at module import time as a top-level constant; it can't
   be changed per-instance at runtime. Tests that need a fresh backend URL do so in their
   own file/process (see `test/server-unreachable.test.js`).
 - `index.js`'s shebang line, its `bin` entry in `package.json`, and the
   `import.meta.url === file://${realpathSync(process.argv[1])}` auto-start guard are all
-  load-bearing for `npx llamacpp-mcp-server` / `npx github:hlgr360/llamacpp-mcp-server`
+  load-bearing for `npx local-llm-mcp` / `npx github:hlgr360/local-llm-mcp`
   to work. **Don't simplify that guard back to comparing `process.argv[1]` directly** —
   npm's `node_modules/.bin/<name>` mechanism always invokes a package's bin through a
   symlink, and `import.meta.url` resolves through it while a non-realpath'd `argv[1]`

@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "llamacpp": {
+    "local_llm": {
       "command": "node",
-      "args": ["/Users/holger/repos/github/llamacpp-mcp-server/index.js"]
+      "args": ["/Users/holger/repos/github/local-llm-mcp/index.js"]
     }
   }
 }
