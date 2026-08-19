@@ -93,8 +93,9 @@ Running against a **real** `llama-server` requires it to already be up (default
   own file/process (see `test/server-unreachable.test.js`).
 - `index.js`'s shebang line, its `bin` entry in `package.json`, and the
   `import.meta.url === file://${realpathSync(process.argv[1])}` auto-start guard are all
-  load-bearing for `npx local-llm-mcp` / `npx github:hlgr360/local-llm-mcp`
-  to work. **Don't simplify that guard back to comparing `process.argv[1]` directly** —
+  load-bearing for `npx github:hlgr360/local-llm-mcp` to work (the npm registry package
+  was unpublished; that's the only `npx` install path now). **Don't simplify that guard
+  back to comparing `process.argv[1]` directly** —
   npm's `node_modules/.bin/<name>` mechanism always invokes a package's bin through a
   symlink, and `import.meta.url` resolves through it while a non-realpath'd `argv[1]`
   doesn't, so they'd silently never match. This exact regression shipped in 2.0.0 (fixed
