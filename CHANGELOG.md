@@ -1,5 +1,24 @@
 # Changelog
 
+## Version 3.1.1 - Drop npm registry distribution; add optional Claude Code plugin
+
+### Breaking Changes
+- **npm registry install removed**: `npx -y local-llm-mcp` (and any `npm install`/`npm publish`
+  of this package) no longer works — the npm package was unpublished and won't be
+  republished. `package.json` now carries `"private": true` to prevent an accidental future
+  publish. Use `npx -y github:hlgr360/local-llm-mcp` (pin a release with `#v3.1.0`, etc.) or
+  clone the repo locally instead — both were already documented options and are unaffected.
+
+### Features
+- **Optional Claude Code plugin**: `.claude-plugin/plugin.json` + `.claude-plugin/marketplace.json`
+  let Claude Code users run `/plugin marketplace add hlgr360/local-llm-mcp` to install the
+  `local_llm` MCP server (via `npx` from GitHub, same as the README's Option A) plus a bundled
+  `PreToolUse`/`Read` hook (`hooks/local-llm-read-gate.sh`) that nudges Claude Code toward the
+  file-aware tools instead of reading whole files by hand. The hook fails open when no local
+  LLM server is reachable and allows a retried `Read` on the same file, so it doesn't fight
+  the `Edit` tool's read-before-edit requirement. This is Claude-Code-specific and additive —
+  every other MCP client keeps using the plain config options above.
+
 ## Version 3.1.0 - Server instructions steering the orchestrating agent toward offload
 
 ### Features

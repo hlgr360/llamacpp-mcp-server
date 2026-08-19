@@ -177,20 +177,7 @@ for Claude Code/Desktop as the reference example:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-**Option A — no clone, install via `npx` from the npm registry (recommended):**
-
-```json
-{
-  "mcpServers": {
-    "local_llm": {
-      "command": "npx",
-      "args": ["-y", "local-llm-mcp"]
-    }
-  }
-}
-```
-
-**Option B — no clone, run straight from GitHub instead:**
+**Option A — no clone, run via `npx` straight from GitHub (recommended):**
 
 ```json
 {
@@ -204,9 +191,11 @@ for Claude Code/Desktop as the reference example:
 ```
 
 This tracks whatever is on `main` rather than a released version — pin to a tag or commit
-instead if you want stability, e.g. `github:hlgr360/local-llm-mcp#v2.0.1`.
+instead if you want stability, e.g. `github:hlgr360/local-llm-mcp#v3.1.0`. This project isn't
+published to the npm registry — `npx` installing straight from the git repo is the only
+"no clone" option.
 
-**Option C — clone locally** (needed if you're developing on the server itself):
+**Option B — clone locally** (needed if you're developing on the server itself):
 
 ```json
 {
@@ -236,16 +225,16 @@ hand-editing your MCP config:
 /plugin install local-llm-mcp@local-llm-mcp-marketplace
 ```
 
-This registers the `local_llm` MCP server the same way Option A above does (via `npx` from
-the published npm package — the plugin cache itself has no build step and doesn't run
-`npm install`, so the server can't run from the plugin's own bundled source), and additionally
-installs a `PreToolUse` hook on `Read` that nudges Claude Code toward the file-aware tools
+This registers the `local_llm` MCP server the same way Option A above does (via `npx` straight
+from GitHub — the plugin cache itself has no build step and doesn't run `npm install`, so the
+server can't run from the plugin's own bundled source), and additionally installs a
+`PreToolUse` hook on `Read` that nudges Claude Code toward the file-aware tools
 (`local_llm_review_file`, `local_llm_explain_file`, `local_llm_analyze_files`) instead of
 reading whole files by hand. The hook only activates when a local LLM server is actually
 reachable (it fails open otherwise), and only blocks the *first* `Read` of a given file per
 session — a second `Read` on the same path goes through, so it doesn't fight the `Edit` tool's
 own read-before-edit requirement. This is Claude-Code-specific plumbing on top of the
-provider-agnostic core above; every other MCP client should keep using Options A–C.
+provider-agnostic core above; every other MCP client should keep using Option A or B.
 
 ### 4. Restart Your MCP Client
 
