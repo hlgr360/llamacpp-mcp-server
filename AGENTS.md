@@ -5,10 +5,12 @@ repo. For user-facing docs see `README.md`; for manual validation see `TEST.md`.
 
 ## What this is
 
-A Node.js MCP server (`index.js`) that bridges a local `llama-server` (llama.cpp's
-OpenAI-compatible server) to MCP-speaking coding agents, exposing 15 `local_llm_*` tools.
-`prompts.js` holds the system/user prompt templates, indexed by tool and by detected
-model family.
+A Node.js MCP server (`index.js`) that bridges a local OpenAI-compatible LLM server —
+`llama-server` (llama.cpp), vLLM, LM Studio, etc. — to MCP-speaking coding agents, exposing
+15 `local_llm_*` tools. `llama-server` is the primary worked example and the only backend
+this project's own test suite runs against (see README's "Using a Different Backend"
+section for pointing at something else). `prompts.js` holds the system/user prompt
+templates, indexed by tool and by detected model family.
 
 ## Commands
 

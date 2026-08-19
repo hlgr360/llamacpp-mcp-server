@@ -1,6 +1,10 @@
-# llama.cpp MCP Server - Test Documentation
+# local-llm-mcp - Test Documentation
 
-This file contains test cases and examples for validating the llama.cpp MCP server functionality, especially the file-aware tools.
+This file contains test cases and examples for validating the local-llm-mcp server
+functionality, especially the file-aware tools. Examples below use `llama-server` as the
+concrete worked backend (it's the only one this project's own test suite runs against),
+but the server itself is provider-agnostic — see README's "Using a Different Backend"
+section for vLLM/LM Studio/etc.
 
 ## Automated Tests
 
@@ -25,7 +29,7 @@ still the manual checklist for that, run against a real `llama-server`.
 Use this file to:
 1. Verify that the MCP server is working correctly after changes
 2. Test the file-aware tools that reduce token usage
-3. Stress test the llama.cpp integration with real project files
+3. Stress test the local model integration with real project files
 
 ## Important Notes
 
@@ -71,7 +75,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 
 **Expected behavior:**
 - MCP server reads the file internally
-- Sends file content to llama.cpp
+- Sends file content to the local model
 - Returns code review focused on error handling
 - **Token savings**: File content doesn't go through the orchestrating agent's conversation
 
@@ -87,7 +91,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 
 **Expected behavior:**
 - MCP server reads package.json
-- llama.cpp explains the file structure and dependencies
+- Local model explains the file structure and dependencies
 - **Token savings**: No need to read/paste file in conversation
 
 #### Test: local_llm_analyze_files
@@ -105,7 +109,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 
 **Expected behavior:**
 - MCP server reads both files
-- llama.cpp analyzes relationships between them
+- Local model analyzes relationships between them
 - Returns insights about dependency usage
 - **Token savings**: Multiple files read server-side
 
@@ -125,7 +129,7 @@ These tools read files directly on the MCP server, reducing conversation token u
 
 **Expected behavior:**
 - MCP server reads reference file(s)
-- llama.cpp generates code matching the existing patterns
+- Local model generates code matching the existing patterns
 - Returns code that follows project conventions
 - **Token savings**: Reference files handled server-side
 
@@ -188,8 +192,8 @@ Total conversation tokens: ~50
 
 ## Common Issues
 
-### Issue: "Cannot connect to llama.cpp server"
-**Solution**: Ensure `llama-server` is running with `llama-server -m <model.gguf> --jinja --port 8080`
+### Issue: "Cannot connect to local LLM server"
+**Solution**: Ensure your backend is running, e.g. `llama-server -m <model.gguf> --jinja --port 8080`
 
 ### Issue: "Timeout exceeded"
 **Solution**:
@@ -237,11 +241,12 @@ Total conversation tokens: ~50
 When these features are added, test them here:
 
 - [ ] Streaming: verify partial output surfaces before the full response completes
-- [ ] Router/multi-model: verify passing an explicit `model` picks the right one
 - [ ] Caching: Repeated calls on same file should be faster
-- [ ] Glob support: Pass patterns like `*.js` instead of individual files
-- [ ] Auto-context: Server automatically finds related files
 - [ ] File writing: Generate code directly to files
+
+Already shipped and covered by `test/server.test.js` (no longer future work): router/
+multi-model support (`TOOL_MODEL_PREFERENCES`), glob patterns for `file_paths`/
+`context_files`, and CodeGraph auto-context enrichment.
 
 ## Notes for Future Self
 

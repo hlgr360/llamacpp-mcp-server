@@ -1,24 +1,29 @@
-# llama.cpp MCP Bridge
+# local-llm-mcp
 
-This MCP (Model Context Protocol) server bridges a local **llama.cpp `llama-server`**
-instance to **any MCP-speaking coding agent** — Claude Code, Cursor, Codex CLI, Cline,
-Windsurf, or your own MCP client — letting you delegate coding tasks to your local models
-to minimize cloud API token usage. It speaks standard MCP over stdio, so nothing here is
-Claude-specific; the setup instructions below use Claude Code as the reference example
-since that's what's included (`claude-mcp-config.json`), but the same `node index.js`
-command works as the MCP server entry for any client.
+This MCP (Model Context Protocol) server bridges a local **OpenAI-compatible LLM
+server** — llama.cpp's `llama-server`, vLLM, LM Studio, or anything else that speaks the
+`/v1/chat/completions` API — to **any MCP-speaking coding agent** — Claude Code, Cursor,
+Codex CLI, Cline, Windsurf, or your own MCP client — letting you delegate coding tasks to
+your local models to minimize cloud API token usage. It speaks standard MCP over stdio, so
+nothing here is Claude-specific; the setup instructions below use Claude Code as the
+reference example since that's what's included (`claude-mcp-config.json`), but the same
+`node index.js` command works as the MCP server entry for any client.
+
+`llama-server` is used as the worked example throughout this README since it's the only
+backend this project's test suite runs against — see "Using a Different Backend" below for
+pointing this server at vLLM, LM Studio, or anything else OpenAI-compatible instead.
 
 ## How It Works
 
 Your coding agent acts as the **orchestrator**, calling tools provided by this MCP
-server. The tools run on your local `llama-server`, and the agent reviews/refines the
-results as needed. This approach:
+server. The tools run on your local backend (`llama-server`, vLLM, LM Studio, etc.), and
+the agent reviews/refines the results as needed. This approach:
 
 - ✅ Minimizes cloud API token usage (up to 98.75% reduction with file-aware tools!)
 - ✅ Leverages your local compute resources
 - ✅ Works across any project/session, in any MCP-compatible client
 - ✅ Lets the orchestrating agent provide oversight and corrections
-- ✅ Auto-detects whichever model `llama-server` currently has loaded — no hardcoded model name
+- ✅ Auto-detects whichever model your backend currently has loaded — no hardcoded model name
 
 ## Available Tools
 
@@ -48,24 +53,28 @@ These tools read files directly on the MCP server, dramatically reducing convers
 
 ### Introspection
 
-12. **local_llm_server_info** - Reports which model `llama-server` currently has loaded, its
+12. **local_llm_server_info** - Reports which model your backend currently has loaded, its
     context size, slot count, and whether it has a chat template — useful for any agent to
-    check what's actually running before assuming a model or capability.
+    check what's actually running before assuming a model or capability. The context-size/
+    slot/chat-template fields come from llama-server's `/props` extension and come back
+    `null` on backends that don't implement it (see "Using a Different Backend" below).
 13. **local_llm_session_stats** - Reports cumulative prompt/completion/total token usage sent
-    to and received from `llama-server` so far in this session, with a per-tool breakdown —
-    based on the `usage` field `llama-server` returns per request. Answers "how many tokens
+    to and received from your backend so far in this session, with a per-tool breakdown —
+    based on the `usage` field the backend returns per request. Answers "how many tokens
     have actually been offloaded to the local model instead of my own context?"
 
 ### Primitives
 
 14. **local_llm_tokenize** - Counts how many tokens a piece of text would consume according to
-    the currently loaded tokenizer, via `llama-server`'s native `/tokenize` endpoint. Useful
-    for checking context-window fit before sending large content.
+    the currently loaded tokenizer, via `/tokenize` — a llama.cpp/llama-server extension, not
+    a standard OpenAI endpoint. Useful for checking context-window fit before sending large
+    content.
 15. **local_llm_semantic_similarity** - Ranks candidate texts by semantic similarity to a query
-    using `llama-server`'s embedding endpoint (`/v1/embeddings` — requires `llama-server` to
-    be started with `--embeddings`). Returns similarity scores only, never raw embedding
-    vectors, since a 768-4096 float vector serialized as tool output would dump thousands of
-    tokens back into the calling agent's context — the opposite of this project's point.
+    using the backend's `/v1/embeddings` endpoint (standard OpenAI surface, but requires an
+    embeddings-capable model to be loaded — for llama-server, start it with `--embeddings`).
+    Returns similarity scores only, never raw embedding vectors, since a 768-4096 float vector
+    serialized as tool output would dump thousands of tokens back into the calling agent's
+    context — the opposite of this project's point.
 
 ## Setup Instructions
 
@@ -128,6 +137,35 @@ By default this MCP server talks to `http://localhost:8080`. Override with the
 ```bash
 export LOCAL_LLM_BASE_URL=http://localhost:8081
 ```
+
+### Using a Different Backend (vLLM, LM Studio, etc.)
+
+This server has no llama.cpp-specific dependency in its request path — every tool talks to
+the backend purely through the OpenAI-compatible surface (`/v1/models`,
+`/v1/chat/completions`, `/v1/embeddings`, plus llama.cpp's own `/tokenize`). To point it at
+a different backend, just start that backend and set `LOCAL_LLM_BASE_URL` to wherever it's
+listening, e.g.:
+
+```bash
+# vLLM, serving an OpenAI-compatible API on port 8000
+export LOCAL_LLM_BASE_URL=http://localhost:8000
+
+# LM Studio, local server mode (default port 1234)
+export LOCAL_LLM_BASE_URL=http://localhost:1234
+```
+
+A few endpoints are best-effort and degrade gracefully on backends that don't implement
+them:
+- **`local_llm_server_info`** calls llama-server's `/props` extension for
+  `context_size`/`total_slots`/`has_chat_template`; on a backend without `/props` (vLLM, LM
+  Studio) those fields come back `null` instead of failing the call.
+- **`local_llm_tokenize`** uses llama-server's `/tokenize` endpoint, which isn't part of the
+  OpenAI standard — check whether your backend exposes an equivalent.
+- **`local_llm_semantic_similarity`** needs `/v1/embeddings`, which requires an
+  embeddings-capable model to be loaded (for llama-server, start it with `--embeddings`).
+
+Everything else — code generation, review, refactoring, the file-aware tools — works
+against any backend that implements standard OpenAI chat completions.
 
 ### 3. Configure Your MCP Client
 
@@ -195,30 +233,30 @@ you configured) for the changes to take effect.
 
 ## Usage
 
-Once configured, your agent will automatically have access to the llama.cpp tools. You can:
+Once configured, your agent will automatically have access to the local LLM tools. You can:
 
 ### Direct Usage
 Ask the agent to use specific tools:
 - "Use local_llm_generate_code to create a function that..."
 - "Use local_llm_review_code to check this code for issues"
 - "Use local_llm_server_info to check what model is loaded"
-- "Use local_llm_session_stats to see how many tokens have been offloaded to llama.cpp so far"
+- "Use local_llm_session_stats to see how many tokens have been offloaded to the local model so far"
 
 ### Automatic Orchestration
-Simply ask the agent to do tasks, and it will decide when to delegate to llama.cpp:
-- "Write a function to parse JSON" → the agent may delegate to llama.cpp
-- "Review this code" → the agent may use llama.cpp for initial review, then add insights
-- "Fix this bug" → llama.cpp attempts fix, the agent verifies and corrects if needed
+Simply ask the agent to do tasks, and it will decide when to delegate to the local model:
+- "Write a function to parse JSON" → the agent may delegate to the local model
+- "Review this code" → the agent may use the local model for initial review, then add insights
+- "Fix this bug" → the local model attempts a fix, the agent verifies and corrects if needed
 
 ## Customization
 
 ### Model Selection
 
-There's no hardcoded model anymore. Every tool call auto-detects whichever model
-`llama-server` currently has loaded (via `GET /v1/models`, cached for ~30 seconds), so
-switching models is just a matter of restarting `llama-server` with a different `-m`.
-You can still force a specific model per call by passing an explicit `model` argument to
-any tool.
+There's no hardcoded model anymore. Every tool call auto-detects whichever model your
+backend currently has loaded (via `GET /v1/models`, standard across OpenAI-compatible
+servers, cached for ~30 seconds), so switching models is just a matter of restarting the
+backend with a different model loaded (e.g. `llama-server`'s `-m` flag). You can still
+force a specific model per call by passing an explicit `model` argument to any tool.
 
 **Router/multi-model setups** (e.g. `llama-swap` fronting several models): when
 `/v1/models` reports more than one entry, auto-detection consults `TOOL_MODEL_PREFERENCES`
@@ -323,10 +361,11 @@ Add new tools by:
 
 ## Troubleshooting
 
-### "Cannot connect to llama.cpp server" Error
-- Ensure `llama-server` is running: `llama-server -m <model.gguf> --jinja --port 8080`
-- Check it's on the expected port: `curl http://localhost:8080/health`
-- Confirm `LOCAL_LLM_BASE_URL` (if set) matches where `llama-server` is actually listening
+### "Cannot connect to local LLM server" Error
+- Ensure your backend is running, e.g. `llama-server -m <model.gguf> --jinja --port 8080`
+- Check it's on the expected port: `curl http://localhost:8080/health` (or your backend's
+  equivalent health/models endpoint)
+- Confirm `LOCAL_LLM_BASE_URL` (if set) matches where your backend is actually listening
 
 ### Tools Not Appearing in Your MCP Client
 - Verify the config path is correct
@@ -345,15 +384,15 @@ Add new tools by:
 ### Basic Workflow
 1. **User asks**: "Create a function to validate email addresses"
 2. **Agent decides**: "This is a code generation task, I'll use local_llm_generate_code"
-3. **llama.cpp generates**: Initial code implementation
+3. **Local model generates**: Initial code implementation
 4. **Agent reviews**: Checks the code, may suggest improvements or fixes
-5. **Result**: User gets llama.cpp-generated code with the agent's oversight
+5. **Result**: User gets locally-generated code with the agent's oversight
 
 ### File-Aware Workflow (Token Saver!)
 1. **User asks**: "Review the code in index.js for security issues"
 2. **Agent calls**: `local_llm_review_file` with the file path and focus="security"
 3. **MCP server**: Reads index.js directly (no tokens used in conversation!)
-4. **llama.cpp analyzes**: Reviews the file
+4. **Local model analyzes**: Reviews the file
 5. **Agent refines**: Adds context or additional insights
 6. **Token savings**: ~98.75% compared to reading the file into conversation first
 
@@ -361,7 +400,7 @@ Add new tools by:
 1. **User asks**: "How do index.js and package.json relate?"
 2. **Agent calls**: `local_llm_analyze_files` with both file paths
 3. **MCP server**: Reads both files server-side
-4. **llama.cpp analyzes**: Identifies dependencies, patterns, relationships
+4. **Local model analyzes**: Identifies dependencies, patterns, relationships
 5. **Result**: Cross-file insights without sending files through the agent's conversation
 
 This hybrid approach gives you the speed and cost savings of local models with the intelligence and quality assurance of your orchestrating agent.
@@ -386,7 +425,7 @@ Response time depends on:
 
 ## Benefits Over Pure Local or Pure Cloud
 
-- **vs Pure llama.cpp**: Your cloud agent provides architectural guidance, catches errors, and ensures quality
+- **vs Pure Local Model**: Your cloud agent provides architectural guidance, catches errors, and ensures quality
 - **vs Pure Cloud Agent**: Significant token savings on routine coding tasks (up to 98.75%!)
 - **Best of Both**: Local compute for heavy lifting, your cloud agent for orchestration and refinement
 
@@ -415,9 +454,7 @@ local-llm-mcp/
 ## Contributing & Future Improvements
 
 Potential enhancements to consider:
-- **Streaming responses**: Stream llama.cpp output for faster perceived performance
-- **Provider-agnostic core**: Target any OpenAI-compatible local server (vLLM, LM Studio, etc.)
-  by swapping the base URL
+- **Streaming responses**: Stream local model output for faster perceived performance
 - **Tool-calling passthrough**: Hand the model real tool definitions via llama-server's
   `--jinja` function-calling support instead of only returning prose
 - **Caching**: Cache file contents for repeated operations
