@@ -1,5 +1,18 @@
 # Changelog
 
+## Version 3.1.2 - Fix plugin manifest so it actually loads
+
+### Fixes
+- **Plugin failed to load**: `claude plugin install` reported "Duplicate hooks file detected"
+  because `plugin.json` explicitly pointed `hooks` at `./hooks/hooks.json`, which is already
+  auto-loaded from that default path — `manifest.hooks` should only reference *additional*
+  hook files. Removed the redundant field.
+- **MCP server silently not registered**: the inline `mcpServers` field in `plugin.json` isn't
+  a real manifest key and was ignored (`claude plugin details` showed "MCP servers (0)").
+  Moved the `local_llm` server definition to a top-level `.mcp.json`, the auto-discovered
+  location, confirmed against a scaffolded reference plugin
+  (`claude plugin init --with mcp --with hooks`).
+
 ## Version 3.1.1 - Drop npm registry distribution; add optional Claude Code plugin
 
 ### Breaking Changes
