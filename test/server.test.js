@@ -186,6 +186,33 @@ describe("callLocalLlm / tool methods", () => {
     );
   });
 
+  test("reviewFile sends line-numbered code so findings can cite real locations", async () => {
+    const filePath = path.join(tmpDir, "multiline.js");
+    await fs.writeFile(filePath, "const a = 1;\nconst b = 2;\nconst c = 3;");
+
+    const server = new LocalLlmServer();
+    await server.reviewFile({ file_path: filePath, focus: "bugs" });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    const userMessage = chatRequest.body.messages[1].content;
+    assert.match(userMessage, /1\tconst a = 1;/);
+    assert.match(userMessage, /2\tconst b = 2;/);
+    assert.match(userMessage, /3\tconst c = 3;/);
+  });
+
+  test("explainFile sends line-numbered code the same way reviewFile does", async () => {
+    const filePath = path.join(tmpDir, "explain-multiline.js");
+    await fs.writeFile(filePath, "const x = 1;\nconst y = 2;");
+
+    const server = new LocalLlmServer();
+    await server.explainFile({ file_path: filePath });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    const userMessage = chatRequest.body.messages[1].content;
+    assert.match(userMessage, /1\tconst x = 1;/);
+    assert.match(userMessage, /2\tconst y = 2;/);
+  });
+
   test("analyzeFiles concatenates all requested files into one prompt", async () => {
     const fileA = path.join(tmpDir, "a.js");
     const fileB = path.join(tmpDir, "b.js");
@@ -201,6 +228,20 @@ describe("callLocalLlm / tool methods", () => {
     assert.match(userMessage, /b\.js/);
     assert.match(userMessage, /const a = 1/);
     assert.match(userMessage, /const b = 2/);
+  });
+
+  test("analyzeFiles sends each file's code with its own line numbering", async () => {
+    const fileA = path.join(tmpDir, "numbered-a.js");
+    await fs.writeFile(fileA, "line one\nline two\nline three");
+
+    const server = new LocalLlmServer();
+    await server.analyzeFiles({ file_paths: [fileA], task: "check" });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    const userMessage = chatRequest.body.messages[1].content;
+    assert.match(userMessage, /1\tline one/);
+    assert.match(userMessage, /2\tline two/);
+    assert.match(userMessage, /3\tline three/);
   });
 
   test("analyzeFiles expands a glob pattern into matching files", async () => {
@@ -232,6 +273,25 @@ describe("callLocalLlm / tool methods", () => {
     const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
     const userMessage = chatRequest.body.messages[1].content;
     assert.match(userMessage, /ctx-glob-a\.js/);
+  });
+
+  test("generateCodeWithContext does NOT line-number reference files (unlike review/analyze)", async () => {
+    const fileA = path.join(tmpDir, "ctx-plain.js");
+    await fs.writeFile(fileA, "const a = 1;\nconst b = 2;");
+
+    const server = new LocalLlmServer();
+    await server.generateCodeWithContext({
+      prompt: "x",
+      language: "javascript",
+      context_files: [fileA],
+    });
+
+    const chatRequest = mock.state.requests.find((r) => r.url === "/v1/chat/completions");
+    const userMessage = chatRequest.body.messages[1].content;
+    // Generation output shouldn't risk copying line-number artifacts, so reference files
+    // stay unnumbered -- only the review/explain/analyze tools get line numbers.
+    assert.doesNotMatch(userMessage, /1\tconst a = 1;/);
+    assert.match(userMessage, /const a = 1;\nconst b = 2;/);
   });
 
   test("rejects a glob pattern that matches too many files", async () => {

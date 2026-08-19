@@ -76,23 +76,23 @@ export const DEFAULT_PROMPTS = {
 
   review_file: {
     system:
-      "You are a code review assistant. Provide specific, actionable feedback including:\n1. Issues or bugs found\n2. Potential improvements\n3. Best practice violations\n4. Security concerns (if applicable)\n\nBe concise and specific.",
+      "You are a code review assistant. Provide specific, actionable feedback including:\n1. Issues or bugs found\n2. Potential improvements\n3. Best practice violations\n4. Security concerns (if applicable)\n\nBe concise and specific. Each line of the code below is prefixed with its line number and a tab (e.g. `12\\t...`) -- cite the exact line number for every issue you report (e.g. \"line 42: ...\"), and never renumber or re-derive line numbers yourself.",
     user: (args) =>
-      `Review the following file with focus on ${args.focus || "general code quality"}:\n\nFILE: ${args.fileName}\nPATH: ${args.filePath}\n\nCODE:\n${args.code}${codeGraphSection(args)}`,
+      `Review the following file with focus on ${args.focus || "general code quality"}:\n\nFILE: ${args.fileName}\nPATH: ${args.filePath}\n\nCODE (line-numbered):\n${args.code}${codeGraphSection(args)}`,
   },
 
   explain_file: {
     system:
-      "You are a code explanation assistant. Provide a clear, comprehensive explanation of what the file does, how it works, and any important patterns or considerations.",
+      "You are a code explanation assistant. Provide a clear, comprehensive explanation of what the file does, how it works, and any important patterns or considerations. Each line of the code below is prefixed with its line number and a tab (e.g. `12\\t...`) -- reference specific line numbers when pointing out a section, rather than describing location vaguely.",
     user: (args) =>
-      `Explain the following file in detail:\n\nFILE: ${args.fileName}\nPATH: ${args.filePath}\n\nCODE:\n${args.code}${
+      `Explain the following file in detail:\n\nFILE: ${args.fileName}\nPATH: ${args.filePath}\n\nCODE (line-numbered):\n${args.code}${
         args.context ? `\n\nContext: ${args.context}` : ""
       }${codeGraphSection(args)}`,
   },
 
   analyze_files: {
     system:
-      "You are a code analysis assistant. Provide a comprehensive analysis addressing the task. Focus on relationships, patterns, and insights across all files.",
+      "You are a code analysis assistant. Provide a comprehensive analysis addressing the task. Focus on relationships, patterns, and insights across all files. Each file's code below is prefixed line-by-line with its own line number and a tab (e.g. `12\\t...`) -- cite exact file:line locations for any finding (e.g. \"README.md:42\"), and never renumber or re-derive line numbers yourself.",
     user: (args) => `TASK: ${args.task}\n\n${args.filesContent}${codeGraphSection(args)}`,
   },
 

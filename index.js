@@ -13,6 +13,7 @@ import path from "path";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import { buildMessages, resolveFamily, TOOL_MODEL_PREFERENCES, TOOL_REASONING_OVERRIDES } from "./prompts.js";
+import packageJson from "./package.json" with { type: "json" };
 
 const execFileAsync = promisify(execFile);
 
@@ -50,6 +51,18 @@ function cosineSimilarity(a, b) {
     normB += b[i] * b[i];
   }
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+// Prefixes each line with its 1-based line number and a tab, matching the format the
+// orchestrating agent's own Read tool returns. Without this, the local model has no way to
+// know real line numbers and will confabulate them when a review/analysis response cites a
+// location -- used only for review_file/explain_file/analyze_files, not
+// generate_code_with_context, since generation output shouldn't risk copying the numbering.
+function numberLines(content) {
+  return content
+    .split("\n")
+    .map((line, i) => `${i + 1}\t${line}`)
+    .join("\n");
 }
 
 // Expands any glob patterns (entries containing *, ?, [, or {) into absolute file paths;
@@ -107,7 +120,7 @@ class LocalLlmServer {
     this.server = new Server(
       {
         name: "local-llm-mcp",
-        version: "3.1.0",
+        version: packageJson.version,
       },
       {
         capabilities: {
@@ -265,7 +278,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_review_file",
-          description: "Review a file by path using your local LLM server. Prefer this over reading the file yourself and passing it to local_llm_review_code -- the MCP server reads the file directly, at a fraction of the token cost of a full read.",
+          description: "Review a file by path using your local LLM server. Prefer this over reading the file yourself and passing it to local_llm_review_code -- the MCP server reads the file directly, at a fraction of the token cost of a full read. Findings cite real line numbers (the file is sent to the model pre-numbered), so file:line locations in the response can be trusted without re-deriving them yourself -- though the findings themselves still warrant the usual verification.",
           inputSchema: {
             type: "object",
             properties: {
@@ -285,7 +298,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_explain_file",
-          description: "Explain a file by path using your local LLM server. Prefer this over reading the file yourself and passing it to local_llm_explain_code -- the MCP server reads the file directly, at a fraction of the token cost of a full read.",
+          description: "Explain a file by path using your local LLM server. Prefer this over reading the file yourself and passing it to local_llm_explain_code -- the MCP server reads the file directly, at a fraction of the token cost of a full read. The file is sent to the model pre-numbered, so it can reference real line numbers in its explanation.",
           inputSchema: {
             type: "object",
             properties: {
@@ -304,7 +317,7 @@ class LocalLlmServer {
         },
         {
           name: "local_llm_analyze_files",
-          description: "Analyze multiple files together using your local LLM server, reading them server-side instead of you reading each one. Useful for understanding relationships/dependencies between files, or for cross-file consistency checks (e.g. do these docs agree with each other, does this doc match the current code) -- prefer this over reading each file yourself first.",
+          description: "Analyze multiple files together using your local LLM server, reading them server-side instead of you reading each one. Useful for understanding relationships/dependencies between files, or for cross-file consistency checks (e.g. do these docs agree with each other, does this doc match the current code) -- prefer this over reading each file yourself first. Each file is sent to the model pre-numbered, so findings can cite real file:line locations -- verify a citation before acting on it if precision matters, the same way you'd verify any of its other output.",
           inputSchema: {
             type: "object",
             properties: {
@@ -673,7 +686,7 @@ class LocalLlmServer {
     const codeGraphContext = await getCodeGraphContext(fileName);
 
     const response = await this.callLocalLlm("review_file", {
-      code,
+      code: numberLines(code),
       focus,
       fileName,
       filePath: file_path,
@@ -690,7 +703,7 @@ class LocalLlmServer {
     const codeGraphContext = await getCodeGraphContext(fileName);
 
     const response = await this.callLocalLlm("explain_file", {
-      code,
+      code: numberLines(code),
       context,
       fileName,
       filePath: file_path,
@@ -708,7 +721,7 @@ class LocalLlmServer {
       expandedPaths.map(async (filePath) => {
         const content = await this.readFile(filePath);
         const fileName = path.basename(filePath);
-        return `FILE: ${fileName}\nPATH: ${filePath}\n\nCODE:\n${content}\n\n${"=".repeat(80)}\n`;
+        return `FILE: ${fileName}\nPATH: ${filePath}\n\nCODE:\n${numberLines(content)}\n\n${"=".repeat(80)}\n`;
       })
     );
     const codeGraphContext = await getCodeGraphContext(expandedPaths.map((p) => path.basename(p)).join(" "));

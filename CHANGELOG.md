@@ -1,5 +1,27 @@
 # Changelog
 
+## Version 3.1.3 - Line-numbered file content for real file:line citations
+
+### Features
+- **`review_file`/`explain_file`/`analyze_files` now send line-numbered code**: a new
+  `numberLines()` helper prefixes each line with its 1-based number and a tab (matching the
+  format the orchestrating agent's own file-reading tool returns) before the content reaches
+  the local model. Previously the model had no way to know real line numbers and would
+  confabulate one whenever a review/analysis response cited a location -- e.g. a doc
+  consistency check during development cited a finding at the wrong line entirely, because
+  the correct line number was simply never available to the model. The system prompts for
+  these three tools now explicitly instruct the model to cite the given numbering and never
+  re-derive it. `generate_code_with_context`'s reference files are deliberately left
+  unnumbered, since generation output shouldn't risk copying line-number artifacts into new
+  code.
+- Tool descriptions for `review_file`/`explain_file`/`analyze_files` updated to tell the
+  calling agent that findings now cite real line numbers.
+
+### Fixes
+- **Stale hardcoded server version**: the MCP `initialize` response's `version` field was
+  hardcoded to `"3.1.0"` and had drifted from `package.json` (already at `3.1.2`). Now reads
+  `packageJson.version` directly via a `package.json` import, so this can't drift again.
+
 ## Version 3.1.2 - Fix plugin manifest so it actually loads
 
 ### Fixes
