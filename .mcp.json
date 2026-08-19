@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "local_llm": {
+      "command": "npx",
+      "args": ["-y", "github:hlgr360/local-llm-mcp"]
+    }
+  }
+}
