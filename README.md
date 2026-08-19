@@ -226,6 +226,27 @@ consult that client's docs for where its MCP config lives — the `mcpServers` e
 is the same for any option above, since this server only relies on standard MCP-over-stdio
 and doesn't do anything Claude-specific.
 
+### 3b. Claude Code Plugin (optional, Claude Code only)
+
+If you use Claude Code specifically, you can install this repo as a plugin instead of
+hand-editing your MCP config:
+
+```
+/plugin marketplace add hlgr360/local-llm-mcp
+/plugin install local-llm-mcp@local-llm-mcp-marketplace
+```
+
+This registers the `local_llm` MCP server the same way Option A above does (via `npx` from
+the published npm package — the plugin cache itself has no build step and doesn't run
+`npm install`, so the server can't run from the plugin's own bundled source), and additionally
+installs a `PreToolUse` hook on `Read` that nudges Claude Code toward the file-aware tools
+(`local_llm_review_file`, `local_llm_explain_file`, `local_llm_analyze_files`) instead of
+reading whole files by hand. The hook only activates when a local LLM server is actually
+reachable (it fails open otherwise), and only blocks the *first* `Read` of a given file per
+session — a second `Read` on the same path goes through, so it doesn't fight the `Edit` tool's
+own read-before-edit requirement. This is Claude-Code-specific plumbing on top of the
+provider-agnostic core above; every other MCP client should keep using Options A–C.
+
 ### 4. Restart Your MCP Client
 
 After updating the configuration, restart your client (Claude Code, or whichever agent
